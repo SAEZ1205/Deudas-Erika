@@ -8,7 +8,7 @@
     "start": "node server.mjs",
     "build": "node scripts/build-static.mjs",
     "dev:full": "node run-full.mjs",
-    "lucia": "node lucia-backend.mjs"
+    "lucia": "node lucia-backend-v2.mjs"
   },
   "engines": {
     "node": ">=18"
