@@ -1,0 +1,66 @@
+name: Validar ALUCIA integral V2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validar-alucia-integral-v2.yml'
+  workflow_dispatch:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build y archivos
+        run: |
+          node --check alucia-enhancements.js
+          node --check lucia-backend-v2.mjs
+          npm run build
+          test -f dist/alucia-enhancements.js
+          test -f dist/alucia-enhancements.css
+          for s in current proration reconnection discount; do
+            test "$(find recibos/$s -name '*.pdf' | wc -l)" -eq 6
+          done
+      - name: Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Smoke test real
+        run: |
+          node lucia-backend-v2.mjs >/tmp/lucia.log 2>&1 & LUCIA_PID=$!
+          PORT=3000 node server.mjs >/tmp/app.log 2>&1 & APP_PID=$!
+          sleep 2
+          node - <<'JS'
+          const { chromium }=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:390,height:844}});
+            const pageErrors=[]; p.on('pageerror',e=>pageErrors.push(String(e)));
+            await p.goto('http://127.0.0.1:3000',{waitUntil:'networkidle'});
+            if((await p.locator('#root').evaluate(e=>e.children.length))<1) throw new Error('root vacío/pantalla azul');
+            const buttons=p.locator('button,[role="button"]'); let opened=false;
+            for(let i=0,n=await buttons.count();i<n;i++){
+              const x=buttons.nth(i); if(!(await x.isVisible()))continue;
+              const txt=((await x.innerText().catch(()=>''))||'')+' '+((await x.getAttribute('aria-label'))||'');
+              const img=await x.locator('img[src*="lucia" i]').count();
+              if(/lucia|asistente|ayuda/i.test(txt)||img){await x.click().catch(()=>{});await p.waitForTimeout(250);if(await p.locator('.alucia-smart-chat').count()){opened=true;break;}}
+            }
+            if(!opened){
+              const imgs=p.locator('img[src*="lucia" i]');
+              for(let i=0,n=await imgs.count();i<n;i++){const x=imgs.nth(i);if(await x.isVisible()){await x.click().catch(()=>{});await p.waitForTimeout(250);if(await p.locator('.alucia-smart-chat').count()){opened=true;break;}}}
+            }
+            if(!opened) throw new Error('No abrió ALUCIA');
+            await p.locator('.alucia-input').fill('oe xq me vino asi'); await p.locator('.alucia-send').click(); await p.waitForTimeout(900);
+            if((await p.locator('.alucia-scroll').innerText()).length<100) throw new Error('Chat sin respuesta');
+            await p.locator('.alucia-input').fill('quiero ver una oferta'); await p.locator('.alucia-send').click(); await p.waitForTimeout(900);
+            if(await p.locator('.alucia-offer-banner').count()<1) throw new Error('Banner no visible');
+            if(await p.getByRole('button',{name:'Mejorar mi plan'}).count()<1) throw new Error('Botón oferta no visible');
+            console.log('OK: UI, chat, respuesta, banner, botón. pageErrors=',pageErrors);
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          kill $APP_PID || true; kill $LUCIA_PID || true
