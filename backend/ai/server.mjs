@@ -1075,7 +1075,7 @@ function deterministic(
       requiresHandoff
     ) {
       return answer(
-        explanation,
+        'Entiendo. Como no tengo información suficiente para confirmar cómo se originó ese cargo, no voy a asumir que tú lo solicitaste. Lo mejor es que un asesor lo revise contigo.',
         {
           showSource: true,
           suggestHuman: true
@@ -1088,7 +1088,7 @@ function deterministic(
       'PRORATION'
     ) {
       return answer(
-        'Entiendo la preocupación. Puedo confirmar que existe un cambio registrado y un ajuste proporcional en tu recibo, pero esos datos no me permiten saber si tú solicitaste personalmente ese cambio. Si no lo reconoces, puedo ayudarte a revisarlo con un asesor.',
+        'Entiendo. Puedo confirmar que hubo un cambio registrado y que aparece un ajuste proporcional, pero eso no me permite saber si tú solicitaste personalmente ese cambio. Si no lo reconoces, lo mejor es que un asesor lo revise contigo.',
         {
           showSource: true,
           suggestHuman: true
@@ -1101,7 +1101,7 @@ function deterministic(
       'RECONNECTION'
     ) {
       return answer(
-        'Entiendo la preocupación. Puedo confirmar que el cargo de reconexión coincide con registros de suspensión y reactivación del servicio, pero esos datos no me permiten saber si tú solicitaste personalmente esa gestión. Si no la reconoces, puedo ayudarte a revisarla con un asesor.',
+        'Entiendo. Puedo confirmar que hubo una suspensión y posterior reactivación del servicio, pero eso no me permite saber si tú solicitaste personalmente esa gestión. Si no la reconoces, lo mejor es que un asesor lo revise contigo.',
         {
           showSource: true,
           suggestHuman: true
@@ -1110,7 +1110,7 @@ function deterministic(
     }
 
     return answer(
-      'Entiendo la preocupación. Puedo confirmar el origen del cobro en los registros disponibles, pero eso no me permite saber si tú lo solicitaste personalmente. Si no lo reconoces, puedo ayudarte a revisarlo con un asesor.',
+      'Entiendo. Puedo confirmar que el cobro aparece en los registros disponibles, pero eso no me permite saber si tú lo solicitaste personalmente. Si no lo reconoces, puedo derivarte con un asesor.',
       {
         showSource: true,
         suggestHuman: true
