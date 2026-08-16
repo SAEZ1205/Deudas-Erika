@@ -23,6 +23,8 @@ async function loadEnv() {
 await loadEnv()
 
 const port = Number(process.env.LUCIA_CALLS_PORT || 8790)
+const trialMode = /^(1|true|yes|si)$/i.test((process.env.TWILIO_TRIAL_MODE || '').trim())
+const TRIAL_VOICE_URL = 'https://webhooks.twilio.com/v1/Voice/Template/voice_text_to_speech'
 
 function json(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
@@ -43,6 +45,11 @@ function escapeXml(text = '') {
     .replace(/'/g, '&apos;')
 }
 
+function isConfigured() {
+  const common = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.ADVISOR_PHONE)
+  return trialMode ? common : Boolean(common && process.env.TWILIO_FROM_NUMBER)
+}
+
 http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -51,8 +58,13 @@ http.createServer(async (req, res) => {
 
   const url = new URL(req.url, 'http://localhost')
   if (req.method === 'GET' && url.pathname === '/api/calls/health') {
-    return json(res, 200, { ok: true, configured: Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM_NUMBER && process.env.ADVISOR_PHONE) })
+    return json(res, 200, {
+      ok: true,
+      configured: isConfigured(),
+      mode: trialMode ? 'trial-template' : 'custom-summary'
+    })
   }
+
   if (req.method !== 'POST' || url.pathname !== '/api/calls/summary') {
     return json(res, 404, { ok: false, error: 'not_found' })
   }
@@ -70,22 +82,54 @@ http.createServer(async (req, res) => {
     const from = (process.env.TWILIO_FROM_NUMBER || '').trim()
     const to = (process.env.ADVISOR_PHONE || '').trim()
 
-    if (!sid || !token || !from || !to) {
-      return json(res, 503, { ok: false, code: 'TWILIO_NOT_CONFIGURED', message: 'La telefonía todavía no está configurada.' })
+    if (!isConfigured()) {
+      return json(res, 503, {
+        ok: false,
+        code: 'TWILIO_NOT_CONFIGURED',
+        message: trialMode
+          ? 'Twilio Trial requiere Account SID, Auth Token y ADVISOR_PHONE.'
+          : 'La telefonía todavía no está configurada.'
+      })
     }
 
-    const summary = buildAdvisorCallSummary(caseData)
-    const twiml = `<Response><Say language="es-MX">${escapeXml(summary)}</Say></Response>`
-    console.log(`[CALL] Solicitud para ${caseId}`)
+    console.log(`[CALL] Solicitud para ${caseId} (${trialMode ? 'TRIAL' : 'CUSTOM'})`)
     const client = twilio(sid, token)
-    const call = await client.calls.create({ to, from, twiml })
+
+    let call
+    if (trialMode) {
+      // En Twilio Trial, Create Call restringe los parámetros permitidos.
+      // No enviamos From ni TwiML inline: Twilio usa su número trial y plantilla autorizada.
+      call = await client.calls.create({
+        to,
+        url: TRIAL_VOICE_URL
+      })
+    } else {
+      const summary = buildAdvisorCallSummary(caseData)
+      const twiml = `<Response><Say language="es-MX">${escapeXml(summary)}</Say></Response>`
+      call = await client.calls.create({ to, from, twiml })
+    }
+
     console.log(`[CALL] Llamada creada ${call.sid}`)
 
-    return json(res, 200, { ok: true, callSid: call.sid, caseId, toMasked: maskPhone(to) })
+    return json(res, 200, {
+      ok: true,
+      callSid: call.sid,
+      caseId,
+      toMasked: maskPhone(to),
+      mode: trialMode ? 'trial-template' : 'custom-summary',
+      note: trialMode
+        ? 'Twilio Trial realizó una llamada real usando su plantilla de voz permitida. El resumen dinámico requiere el modo de cuenta completa.'
+        : 'LucIA leerá el resumen dinámico correspondiente al caso.'
+    })
   } catch (error) {
     console.error('[CALL] Error:', error?.message || error)
-    return json(res, 500, { ok: false, code: 'CALL_FAILED', message: 'No se pudo iniciar la llamada.' })
+    return json(res, 500, {
+      ok: false,
+      code: 'CALL_FAILED',
+      message: error?.message || 'No se pudo iniciar la llamada.'
+    })
   }
 }).listen(port, '127.0.0.1', () => {
   console.log(`LucIA llamadas: http://127.0.0.1:${port}/api/calls/summary`)
+  console.log(`[CALL] Modo: ${trialMode ? 'TWILIO TRIAL' : 'RESUMEN DINÁMICO'}`)
 })
