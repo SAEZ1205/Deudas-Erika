@@ -1,0 +1,87 @@
+{
+  "client_id": "48597019",
+  "subscriber_id": "200853636",
+  "previous_bill": {
+    "invoice": "S5AA-0078806268",
+    "cycle": "20260317",
+    "total": 149.9
+  },
+  "current_bill": {
+    "invoice": "S5AA-0079701049",
+    "cycle": "20260417",
+    "total": 194.97
+  },
+  "difference": 45.07,
+  "cause": "PRORATION_AFTER_COMPLETED_CHANGE_ORDER",
+  "proration_amount": 85.08,
+  "charges": [
+    {
+      "description": "Movistar Internet",
+      "group": "CARGO FIJO PROPORCIONAL",
+      "amount": 85.08
+    },
+    {
+      "description": "Movistar Internet",
+      "group": "CARGO FIJO",
+      "amount": 109.89
+    }
+  ],
+  "evidence": [
+    {
+      "source": "FACTURACION",
+      "event": "Cargo fijo proporcional",
+      "amount": 85.08,
+      "invoice": "S5AA-0079701049"
+    },
+    {
+      "source": "ORDENES",
+      "event": "Pedido de Cliente - Retención",
+      "action": "Cambiar",
+      "status": "Terminado",
+      "start_date": "2026-03-25 21:58:09.000",
+      "completion_date": "2026-03-25 21:59:40.000"
+    }
+  ],
+  "evidence_status": "VERIFIED",
+  "requires_handoff": false,
+  "traceability": {
+    "rule_applied": "PRORATION_RULE_V1",
+    "checked_sources": [
+      "FACTURACION",
+      "ORDENES"
+    ],
+    "matched_keys": {
+      "customer_key": "48597019",
+      "subscriber_key": "200853636"
+    },
+    "steps": [
+      {
+        "step": 1,
+        "description": "Se comparó el recibo actual con el recibo anterior."
+      },
+      {
+        "step": 2,
+        "description": "Se detectó un cargo clasificado como CARGO FIJO PROPORCIONAL."
+      },
+      {
+        "step": 3,
+        "description": "Se identificó una orden para el mismo cliente y servicio."
+      },
+      {
+        "step": 4,
+        "description": "La orden corresponde a 'Pedido de Cliente - Retención' con acción 'Cambiar'."
+      },
+      {
+        "step": 5,
+        "description": "La orden figura como Terminado y antecede al ciclo donde aparece el cargo proporcional."
+      },
+      {
+        "step": 6,
+        "description": "Al existir cargo proporcional y una orden de cambio completada, la evidencia se clasificó como VERIFIED."
+      }
+    ]
+  },
+  "limitations": [
+    "No se reconstruyen días exactos de prorrateo porque las fechas disponibles no permiten validar ese cálculo de forma confiable."
+  ]
+}

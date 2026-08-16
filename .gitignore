@@ -6,3 +6,14 @@ dist/
 backend/data/raw/*
 !backend/data/raw/.gitkeep
 .DS_Store
+
+# Datasets oficiales locales
+backend/data/raw/*
+!backend/data/raw/.gitkeep
+
+# Archivos exploratorios generados
+backend/data/processed/*_candidates.csv
+
+# Python
+__pycache__/
+*.pyc

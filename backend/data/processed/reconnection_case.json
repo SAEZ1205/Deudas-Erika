@@ -1,0 +1,79 @@
+{
+  "client_id": "40185997",
+  "subscriber_id": "190919663",
+  "previous_bill": {
+    "invoice": "S3AA-0076322199",
+    "cycle": "20260315",
+    "total": 39.99
+  },
+  "current_bill": {
+    "invoice": "S3AA-0077518597",
+    "cycle": "20260415",
+    "total": 44.57
+  },
+  "difference": 4.58,
+  "cause": "RECONNECTION",
+  "charges": [
+    {
+      "description": "Cargo por Reconexión",
+      "amount": 4.58
+    }
+  ],
+  "evidence": [
+    {
+      "source": "FACTURACION",
+      "event": "Cargo por Reconexión",
+      "amount": 4.58,
+      "invoice": "S3AA-0077518597"
+    },
+    {
+      "source": "ORDENES",
+      "event": "Cobranza - Suspensión Parcial",
+      "status": "Terminado",
+      "start_date": "2026-03-20 02:37:15.000",
+      "completion_date": "2026-03-20 02:37:17.000"
+    },
+    {
+      "source": "ORDENES",
+      "event": "Cobranza - Reactivación con Cargo",
+      "status": "Terminado",
+      "start_date": "2026-03-20 08:14:54.000",
+      "completion_date": "2026-03-20 08:14:59.000"
+    }
+  ],
+  "evidence_status": "VERIFIED",
+  "requires_handoff": false,
+  "traceability": {
+    "rule_applied": "RECONNECTION_RULE_V1",
+    "checked_sources": [
+      "FACTURACION",
+      "ORDENES"
+    ],
+    "matched_keys": {
+      "customer_key": "40185997",
+      "subscriber_key": "190919663"
+    },
+    "steps": [
+      {
+        "step": 1,
+        "description": "Se comparó el recibo actual con el recibo anterior."
+      },
+      {
+        "step": 2,
+        "description": "Se detectó un cargo clasificado como CARGO POR RECONEXION."
+      },
+      {
+        "step": 3,
+        "description": "Se buscó una suspensión para el mismo cliente y servicio."
+      },
+      {
+        "step": 4,
+        "description": "Se buscó una reactivación con cargo para el mismo cliente y servicio."
+      },
+      {
+        "step": 5,
+        "description": "Al existir cargo, suspensión y reactivación, la evidencia se clasificó como VERIFIED."
+      }
+    ]
+  }
+}

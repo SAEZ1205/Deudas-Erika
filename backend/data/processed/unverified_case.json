@@ -1,0 +1,81 @@
+{
+  "client_id": "48425384",
+  "subscriber_id": "144739258",
+  "previous_bill": {
+    "invoice": "S7AA-0067827914",
+    "cycle": "20260523",
+    "total": 31.9
+  },
+  "current_bill": {
+    "invoice": "S7AA-0068423074",
+    "cycle": "20260623",
+    "total": 41.89
+  },
+  "difference": 9.99,
+  "cause": null,
+  "charges": [
+    {
+      "description": "Paquete 3GB de Internet 10dias x S/10",
+      "group": "PAQUETES",
+      "amount": 9.99
+    }
+  ],
+  "evidence": [
+    {
+      "source": "FACTURACION",
+      "event": "Cargo nuevo detectado",
+      "description": "Paquete 3GB de Internet 10dias x S/10",
+      "amount": 9.99,
+      "invoice": "S7AA-0068423074"
+    }
+  ],
+  "missing_evidence": [
+    {
+      "source": "ORDENES",
+      "description": "No se encontró una orden asociada que permita confirmar el origen del paquete."
+    }
+  ],
+  "evidence_status": "NONE",
+  "requires_handoff": true,
+  "handoff_reason": "EVIDENCIA_INSUFICIENTE_PARA_CONFIRMAR_ORIGEN",
+  "traceability": {
+    "rule_applied": "UNVERIFIED_CHARGE_RULE_V1",
+    "checked_sources": [
+      "FACTURACION",
+      "ORDENES"
+    ],
+    "matched_keys": {
+      "customer_key": "48425384",
+      "subscriber_key": "144739258"
+    },
+    "steps": [
+      {
+        "step": 1,
+        "description": "Se comparó el recibo actual con el recibo anterior."
+      },
+      {
+        "step": 2,
+        "description": "Se detectó un cargo nuevo que no aparecía en el ciclo anterior."
+      },
+      {
+        "step": 3,
+        "description": "El cargo nuevo corresponde a un paquete de datos por S/9.99."
+      },
+      {
+        "step": 4,
+        "description": "Se buscaron órdenes para el mismo cliente y servicio."
+      },
+      {
+        "step": 5,
+        "description": "No se encontró una orden que permita confirmar el origen del paquete."
+      },
+      {
+        "step": 6,
+        "description": "Al no existir evidencia suficiente para demostrar la causa, el caso se clasificó como NONE y requiere hand-off."
+      }
+    ],
+    "missing_evidence": [
+      "Orden asociada a la activación del paquete"
+    ]
+  }
+}
