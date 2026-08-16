@@ -181,7 +181,7 @@
   }
 
   document.addEventListener('click',e=>{
-    const btn=e.target.closest('.receipt-demo-options button,.demo-scenario-options button');
+    const btn=e.target.closest('button');
     if(btn){const next=scenarioFromText(btn.textContent); if(next && next!==scenario){scenario=next;sessionStorage.setItem('alucia:scenario',next);resetConversation(next);setTimeout(rewriteReceiptTargets,80);}}
   },true);
 
