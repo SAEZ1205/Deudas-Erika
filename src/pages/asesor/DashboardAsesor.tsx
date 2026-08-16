@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react'
 import { advisorCases } from '../../data/mocks/advisorCases'
 
 const statusMeta = {
@@ -17,6 +18,8 @@ function elapsed(iso: string) {
 }
 
 export default function DashboardAsesor() {
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('all')
   const counts = {
     total: advisorCases.length,
     pending: advisorCases.filter(c => c.status === 'pending').length,
@@ -24,28 +27,40 @@ export default function DashboardAsesor() {
     resolved: advisorCases.filter(c => c.status === 'resolved').length,
     callback: advisorCases.filter(c => c.status === 'callback').length,
   }
+  const filtered = useMemo(() => advisorCases.filter(c => {
+    const haystack = `${c.clientHash} ${c.fullName} ${c.reason} ${c.shortSummary}`.toLowerCase()
+    const okQuery = haystack.includes(query.toLowerCase())
+    const okStatus = status === 'all' || c.status === status
+    return okQuery && okStatus
+  }), [query, status])
 
   return (
-    <main className="advisor-shell min-h-screen overflow-auto bg-[#eef6fa] text-slate-900">
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-r from-[#008ad8] to-[#0aa9e8] px-6 py-4 text-white shadow-lg">
-        <div className="flex items-center gap-3"><div className="text-3xl font-black">M</div><div><b>LucIA · Consola de atención</b><p className="text-xs text-white/80">Bandeja operativa</p></div></div>
+    <main className="min-h-screen overflow-auto bg-[#edf6fb] text-slate-900">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-r from-[#008ad8] to-[#11a7e7] px-6 py-4 text-white shadow-lg">
+        <div className="flex items-center gap-3"><div className="text-3xl font-black">M</div><div><b>LucIA · Consola de atención</b><p className="text-xs text-white/80">Bandeja operativa para asesores</p></div></div>
         <a href="/" className="rounded-full border border-white/40 px-4 py-2 text-sm font-semibold backdrop-blur">Volver a Mi Movistar</a>
       </header>
 
       <section className="mx-auto max-w-7xl px-5 py-7">
-        <div className="relative overflow-hidden rounded-[30px] bg-white p-7 shadow-xl ring-1 ring-sky-100">
-          <div className="absolute -left-20 -top-20 h-52 w-52 rounded-full bg-sky-200/40 blur-3xl" />
-          <div className="absolute -right-16 top-10 h-56 w-56 rounded-full bg-fuchsia-200/30 blur-3xl" />
-          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[.18em] text-sky-600">Call center · bandeja operativa</p>
-              <h1 className="mt-2 text-4xl font-black tracking-tight">Casos de LucIA</h1>
-              <p className="mt-2 max-w-2xl text-slate-500">Prioriza rápido, entiende el motivo de cada cliente y entra con el contexto ya preparado.</p>
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Demo local · backend activo</div>
+        <div className="relative overflow-hidden rounded-[32px] bg-white shadow-xl ring-1 ring-sky-100">
+          <div className="grid min-h-[250px] lg:grid-cols-[1.05fr_.95fr]">
+            <div className="relative z-10 p-7 lg:p-9">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-sky-600">Call center · bandeja operativa</p>
+              <h1 className="mt-2 text-4xl font-black tracking-tight lg:text-5xl">Casos de LucIA</h1>
+              <p className="mt-3 max-w-xl text-slate-500">Prioriza rápido, entiende el motivo de cada cliente y entra con el contexto preparado para atender sin pedir que repita todo.</p>
+              <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Demo local · backend activo</div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button className="rounded-2xl border-2 border-emerald-300 bg-white px-5 py-3 font-black text-emerald-700 shadow-sm transition hover:-translate-y-0.5">↓ Excel / CSV</button>
+                <button className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-3 font-black text-amber-700 shadow-sm transition hover:-translate-y-0.5">↻ Actualizar</button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <button className="rounded-2xl border-2 border-emerald-300 bg-white px-5 py-3 font-bold text-emerald-700 shadow-sm">↓ Excel / CSV</button>
-              <button className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-5 py-3 font-bold text-amber-700 shadow-sm">↻ Actualizar</button>
+            <div className="relative min-h-[220px] overflow-hidden bg-gradient-to-br from-sky-100 via-white to-indigo-100">
+              <img src="/promos/inicio-cambiate.png" className="absolute inset-0 h-full w-full object-cover object-center opacity-90" />
+              <div className="absolute inset-0 bg-gradient-to-r from-white/40 via-transparent to-sky-100/10" />
+              <div className="absolute bottom-4 right-5 rounded-2xl bg-white/85 px-4 py-3 shadow-lg backdrop-blur">
+                <p className="text-xs font-black uppercase tracking-wider text-sky-600">Atención más humana</p>
+                <p className="mt-1 text-sm font-bold text-slate-700">Contexto listo antes de hablar con el cliente</p>
+              </div>
             </div>
           </div>
         </div>
@@ -62,18 +77,19 @@ export default function DashboardAsesor() {
 
         <div className="mt-5 overflow-hidden rounded-[28px] bg-white shadow-xl ring-1 ring-slate-100">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row">
-            <input className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-sky-400" placeholder="Buscar hash, nombre o motivo" />
-            <select className="rounded-2xl border border-slate-200 px-4 py-3"><option>Todos los estados</option></select>
+            <input value={query} onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1 rounded-2xl border border-slate-200 px-4 py-3 outline-none transition focus:border-sky-400" placeholder="Buscar hash, nombre o motivo" />
+            <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-2xl border border-slate-200 px-4 py-3"><option value="all">Todos los estados</option><option value="pending">Atender</option><option value="active">En atención</option><option value="resolved">Resueltos</option><option value="callback">Callbacks</option></select>
+            <div className="self-center text-sm font-bold text-slate-400">{filtered.length} casos</div>
           </div>
 
-          <div className="hidden grid-cols-[1.2fr_.8fr_2fr_.7fr_.6fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 md:grid">
+          <div className="hidden grid-cols-[1.3fr_.8fr_2fr_.7fr_.6fr] gap-4 bg-slate-50 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 md:grid">
             <span>Cliente</span><span>Fecha</span><span>Motivo</span><span>Estado</span><span className="text-right">Tiempo</span>
           </div>
 
           <div className="divide-y divide-slate-100">
-            {advisorCases.map(c => {
+            {filtered.map(c => {
               const meta = statusMeta[c.status]
-              return <a key={c.id} href={`/asesor/caso/${c.id}`} className="group grid gap-4 px-5 py-5 transition hover:bg-sky-50/70 md:grid-cols-[1.2fr_.8fr_2fr_.7fr_.6fr] md:items-center">
+              return <a key={c.id} href={`/asesor/caso/${c.id}`} className="group grid gap-4 px-5 py-5 transition hover:bg-sky-50/70 md:grid-cols-[1.3fr_.8fr_2fr_.7fr_.6fr] md:items-center">
                 <div className="flex items-center gap-3">
                   <img src={c.gender === 'female' ? '/advisor/avatar-female.webp' : '/advisor/avatar-male.webp'} className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-md ring-2 ring-sky-100" />
                   <div><div className="font-black text-slate-800">{c.clientHash}</div><div className="text-xs text-slate-500">{c.fullName}</div></div>
@@ -84,6 +100,7 @@ export default function DashboardAsesor() {
                 <div className="flex items-center justify-between gap-3 text-sm font-black text-slate-500 md:justify-end"><span>{elapsed(c.createdAt)}</span><span className="text-xl text-sky-500 transition group-hover:translate-x-1">›</span></div>
               </a>
             })}
+            {filtered.length === 0 && <div className="p-10 text-center text-sm font-semibold text-slate-400">No hay casos que coincidan con tu búsqueda.</div>}
           </div>
         </div>
 
