@@ -1,0 +1,74 @@
+name: Validar ALUCIA integral V3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validar-alucia-integral-v3.yml'
+  workflow_dispatch:
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build y estructura
+        run: |
+          node --check alucia-enhancements.js
+          node --check alucia-trigger.js
+          node --check lucia-backend-v2.mjs
+          npm run build
+          test -f dist/alucia-trigger.js
+          for s in current proration reconnection discount; do
+            test "$(find recibos/$s -name '*.pdf' | wc -l)" -eq 6
+            test -s "recibos/$s/recibo-agosto-2026.pdf"
+          done
+      - name: Playwright
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Probar UI, chat, voz UI, banner, reset y PDF
+        run: |
+          node lucia-backend-v2.mjs >/tmp/lucia.log 2>&1 & LUCIA_PID=$!
+          PORT=3000 node server.mjs >/tmp/app.log 2>&1 & APP_PID=$!
+          sleep 2
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            const p=await b.newPage({viewport:{width:390,height:844}});
+            const errors=[];p.on('pageerror',e=>errors.push(String(e)));
+            await p.goto('http://127.0.0.1:3000',{waitUntil:'networkidle'});
+            if((await p.locator('#root').evaluate(e=>e.children.length))<1)throw new Error('PANTALLA AZUL/root vacío');
+            await p.waitForSelector('#alucia-smart-trigger',{timeout:5000});
+            await p.locator('#alucia-smart-trigger').click();
+            await p.waitForSelector('.alucia-smart-chat',{timeout:3000});
+            if(await p.locator('.alucia-mic').count()<1)throw new Error('Falta input de voz');
+            if(await p.locator('.alucia-speaker').count()<1)throw new Error('Falta output de voz');
+            await p.locator('.alucia-input').fill('oe xq me vino asi');await p.locator('.alucia-send').click();await p.waitForTimeout(800);
+            let txt=await p.locator('.alucia-scroll').innerText();if(!/recibo|plan|mantuvo|cobro/i.test(txt))throw new Error('Chat no respondió');
+            await p.locator('.alucia-input').fill('quiero ver una oferta');await p.locator('.alucia-send').click();await p.waitForTimeout(800);
+            if(await p.locator('.alucia-offer-banner').count()<1)throw new Error('Banner no apareció');
+            if(await p.getByRole('button',{name:'Mejorar mi plan'}).count()<1)throw new Error('Falta Mejorar mi plan');
+
+            await p.locator('.alucia-close').click();
+            await p.evaluate(()=>{const x=document.createElement('button');x.id='test-reconexion';x.textContent='Cobro por reconexión';document.body.appendChild(x);x.click();});
+            await p.waitForTimeout(150);
+            await p.locator('#alucia-smart-trigger').click();await p.waitForSelector('.alucia-smart-chat');
+            txt=await p.locator('.alucia-scroll').innerText();
+            if(!/reconexión|reconexion/i.test(txt))throw new Error('Chat no se reinició/cambió a reconexión');
+            const msgs=await p.locator('.alucia-scroll .chat-message').count();if(msgs!==1)throw new Error('Historial no se reinició: '+msgs);
+            await p.evaluate(()=>{const a=document.createElement('a');a.id='test-pdf';a.href='/recibos/recibo-agosto-2026.pdf';a.textContent='PDF';document.body.appendChild(a);});
+            await p.waitForTimeout(250);
+            const href=await p.locator('#test-pdf').getAttribute('href');
+            if(!href.includes('/recibos/reconnection/recibo-agosto-2026.pdf'))throw new Error('PDF no cambió de escenario: '+href);
+            const pdf=await p.request.get('http://127.0.0.1:3000/recibos/reconnection/recibo-agosto-2026.pdf');if(!pdf.ok())throw new Error('PDF reconexión no sirve');
+            if(errors.length)console.log('Page errors:',errors);
+            console.log('OK TOTAL: interfaz, ALUCIA, voz UI, conversación, banner, reset y PDF');
+            await b.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          kill $APP_PID || true;kill $LUCIA_PID || true
