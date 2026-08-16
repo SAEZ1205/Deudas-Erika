@@ -8,12 +8,14 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 3000",
     "lucia": "node backend/ai/server.mjs",
-    "dev:full": "concurrently -k -n WEB,LUCIA \"npm:dev\" \"npm:lucia\"",
+    "calls": "node backend/ai/calls-server.mjs",
+    "dev:full": "concurrently -k -n WEB,LUCIA,CALLS \"npm:dev\" \"npm:lucia\" \"npm:calls\"",
     "receipts": "python scripts/generate_receipts_v3.py"
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
@@ -26,5 +28,5 @@
     "typescript": "^5.7.3",
     "vite": "^5.4.14"
   },
-  "engines": { "node": ">=18" }
+  "engines": { "node": ">=20" }
 }
