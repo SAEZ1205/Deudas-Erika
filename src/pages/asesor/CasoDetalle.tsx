@@ -4,9 +4,9 @@ export default function CasoDetalle() {
   const id = decodeURIComponent(window.location.pathname.split('/').pop() || '')
   const c = advisorCases.find(x => x.id === id) || advisorCases[0]
   return (
-    <main className="min-h-screen overflow-auto bg-[#eef6fa] text-slate-900">
+    <main className="min-h-screen h-screen overflow-y-auto overflow-x-hidden bg-[#eef6fa] text-slate-900">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-r from-[#008ad8] to-[#0aa9e8] px-6 py-4 text-white shadow-lg">
-        <div className="flex items-center gap-3"><div className="text-3xl font-black">M</div><b>LucIA · Consola de atención</b></div>
+        <div className="flex items-center gap-3"><img src="/favicon.svg" className="h-9 w-9 brightness-0 invert"/><b>LucIA · Consola de atención</b></div>
         <a href="/" className="rounded-full border border-white/40 px-4 py-2 text-sm font-semibold">Volver a Mi Movistar</a>
       </header>
 
@@ -21,12 +21,20 @@ export default function CasoDetalle() {
           </div>
         </div>
 
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button className="rounded-2xl border-2 border-sky-300 bg-white px-5 py-3 font-black text-sky-700 shadow-sm">🔊 Resumen por voz</button>
+          <button className="rounded-2xl bg-sky-500 px-5 py-3 font-black text-white shadow-lg">Tomar caso</button>
+          <button className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-white shadow-lg">Marcar como resuelto</button>
+        </div>
+
         <div className="mt-5 grid gap-5 lg:grid-cols-[.9fr_1.1fr]">
           <section className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-100">
-            <p className="text-xs font-black uppercase tracking-[.16em] text-sky-600">Resumen para el asesor</p>
-            <h2 className="mt-2 text-2xl font-black">Lo importante antes de atender</h2>
+            <p className="text-xs font-black uppercase tracking-[.16em] text-sky-600">Información del cliente</p>
+            <h2 className="mt-2 text-2xl font-black">Datos útiles para atender</h2>
             <div className="mt-5 divide-y divide-slate-100 text-sm">
+              <div className="flex justify-between gap-4 py-3"><span className="text-slate-500">Nombre completo</span><b className="text-right">{c.fullName}</b></div>
               <div className="flex justify-between gap-4 py-3"><span className="text-slate-500">Hash cliente</span><b>{c.clientHash}</b></div>
+              <div className="flex justify-between gap-4 py-3"><span className="text-slate-500">Línea</span><b>{c.phone}</b></div>
               <div className="flex justify-between gap-4 py-3"><span className="text-slate-500">Recibo</span><b>{c.receipt}</b></div>
               <div className="flex justify-between gap-4 py-3"><span className="text-slate-500">Ciclo</span><b>{c.cycle}</b></div>
               <div className="py-3"><span className="text-slate-500">Motivo corto</span><p className="mt-1 font-bold">{c.shortSummary}</p></div>
@@ -35,18 +43,21 @@ export default function CasoDetalle() {
           </section>
 
           <section className="rounded-[28px] bg-white p-6 shadow-lg ring-1 ring-slate-100">
-            <p className="text-xs font-black uppercase tracking-[.16em] text-sky-600">Conversación previa</p>
-            <h2 className="mt-2 text-2xl font-black">El cliente no tendrá que repetir esto</h2>
-            <div className="mt-5 space-y-4">{c.conversation.map((m, i) => <div key={i} className={`flex ${m.role === 'client' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === 'client' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-800'}`}><div className="mb-1 text-[10px] font-black uppercase opacity-60">{m.role === 'client' ? 'Cliente' : 'LucIA'}</div>{m.text}</div></div>)}</div>
+            <div className="flex items-center gap-3"><div className="grid h-11 w-11 place-items-center rounded-2xl bg-sky-100 text-xl">💬</div><div><p className="text-xs font-black uppercase tracking-[.16em] text-sky-600">Conversación previa</p><h2 className="text-2xl font-black">Chat con LucIA</h2></div></div>
+            <p className="mt-2 text-sm text-slate-500">El cliente no tendrá que repetir lo que ya conversó.</p>
+            <div className="mt-5 max-h-[430px] space-y-4 overflow-y-auto pr-2">{c.conversation.map((m, i) => <div key={i} className={`flex ${m.role === 'client' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === 'client' ? 'bg-sky-500 text-white' : 'bg-slate-100 text-slate-800'}`}><div className="mb-1 text-[10px] font-black uppercase opacity-60">{m.role === 'client' ? 'Cliente' : 'LucIA'}</div>{m.text}</div></div>)}</div>
           </section>
         </div>
 
-        <section className="relative mt-5 overflow-hidden rounded-[30px] bg-gradient-to-br from-[#007fd1] via-[#0799e4] to-[#20b8ec] p-6 text-white shadow-xl">
-          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10" />
-          <div className="relative grid gap-5 md:grid-cols-[1fr_auto] md:items-center"><div><p className="text-xs font-black uppercase tracking-[.18em] text-white/70">Resumen de LucIA</p><h2 className="mt-2 text-2xl font-black">Qué debería saber el asesor en 20 segundos</h2><p className="mt-3 max-w-3xl leading-relaxed text-white/90">{c.luciaSummary}</p></div><img src="/lucia/lucia-chat-wave.png" className="hidden h-36 w-36 rounded-[28px] bg-white/10 object-contain p-2 md:block" /></div>
+        <section className="relative mt-5 overflow-hidden rounded-[28px] border-2 border-sky-200 bg-sky-50 p-6 shadow-lg">
+          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-sky-100/70" />
+          <div className="relative grid gap-5 md:grid-cols-[auto_1fr] md:items-center">
+            <img src="/lucia/lucia-academy-pointer.png" className="h-36 w-36 rounded-[26px] bg-white object-contain p-2 shadow-md" />
+            <div><p className="text-xs font-black uppercase tracking-[.18em] text-sky-600">LucIA te deja esto listo</p><h2 className="mt-2 text-2xl font-black text-slate-800">En simple: ¿qué está pasando con este cliente?</h2><p className="mt-3 max-w-3xl leading-relaxed text-slate-600">{c.luciaSummary}</p><div className="mt-4 inline-flex rounded-full bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm">Resumen generado con la conversación y evidencia disponible</div></div>
+          </div>
         </section>
 
-        <div className="mt-5 flex flex-wrap gap-3 pb-10"><button className="rounded-2xl border-2 border-sky-400 bg-white px-5 py-3 font-black text-sky-700">Tomar caso</button><button className="rounded-2xl bg-sky-500 px-5 py-3 font-black text-white shadow-lg">Iniciar atención</button><button className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-white shadow-lg">Marcar resuelto</button></div>
+        <div className="h-10" />
       </section>
     </main>
   )
