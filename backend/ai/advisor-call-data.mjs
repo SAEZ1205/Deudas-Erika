@@ -38,7 +38,24 @@ export const advisorCallCases = {
     plan: 59.90,
     evidence: ['plan vigente de S/59.90', 'sin cargos adicionales confirmados'],
     recommendation: 'confirmar que la cliente no tiene otra duda antes de cerrar el caso'
+  },
+  'DEMO-RECONNECTION': {
+    fullName: 'Cliente demo reconexión',
+    reason: 'cargo por reconexión del servicio',
+    currentTotal: 69.90,
+    previousTotal: 59.90,
+    difference: 10.00,
+    plan: 59.90,
+    evidence: ['cargo único de reconexión por S/10.00', 'registro de suspensión y reactivación'],
+    recommendation: 'explicar que el plan base no cambió y que el incremento corresponde únicamente a la reconexión'
   }
+}
+
+export const scenarioCallCaseIds = {
+  current: 'CASO-602318',
+  discount: 'CASO-218217',
+  proration: 'CASO-771204',
+  reconnection: 'DEMO-RECONNECTION'
 }
 
 const soles = value => {
