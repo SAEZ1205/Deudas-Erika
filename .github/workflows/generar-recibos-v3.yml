@@ -1,0 +1,58 @@
+name: Generar recibos finales V3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/generate_receipts_v3.py'
+      - '.github/workflows/generar-recibos-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar ReportLab y Poppler
+        run: |
+          pip install reportlab
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils
+      - name: Generar 24 PDFs
+        run: python scripts/generate_receipts_v3.py
+      - name: Validar estructura de recibos
+        run: |
+          test "$(find recibos/current -name '*.pdf' | wc -l)" -eq 6
+          test "$(find recibos/proration -name '*.pdf' | wc -l)" -eq 6
+          test "$(find recibos/reconnection -name '*.pdf' | wc -l)" -eq 6
+          test "$(find recibos/discount -name '*.pdf' | wc -l)" -eq 6
+          test "$(find recibos/{current,proration,reconnection,discount} -name '*.pdf' | wc -l)" -eq 24
+          for f in recibos/{current,proration,reconnection,discount}/*.pdf; do
+            test "$(head -c 4 "$f")" = '%PDF'
+            test "$(stat -c%s "$f")" -gt 2500
+            pdfinfo "$f" | grep -q 'Pages:.*1'
+          done
+      - name: Renderizar muestras
+        run: |
+          mkdir -p /tmp/receipt-renders
+          for s in current proration reconnection discount; do
+            pdftoppm -f 1 -singlefile -png -r 90 "recibos/$s/recibo-agosto-2026.pdf" "/tmp/receipt-renders/$s" >/dev/null
+            test -s "/tmp/receipt-renders/$s.png"
+          done
+      - name: Guardar PDFs regenerados
+        run: |
+          git config user.name 'SAEZ1205'
+          git config user.email 'saez123m@gmail.com'
+          git add recibos
+          if ! git diff --cached --quiet; then
+            git commit -m 'Regenerar 24 recibos estilo Mi Movistar'
+            git push origin main
+          fi
