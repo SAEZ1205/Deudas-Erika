@@ -136,11 +136,24 @@
     const scroll = smartPanel.querySelector('.alucia-scroll');
     if(!scroll) return;
     let html = messageHtml('bot',greeting(),'Escenario activo: '+FACTS[scenario].label);
+    let needsHuman = false;
+
     for(const m of history){
       html += messageHtml(m.role,m.text,m.source);
-      if(m.role==='bot' && m.offer) html += offerHtml(m.offer);
-      if(m.role==='bot' && m.suggestHuman) html += humanHtml();
+
+      if(m.role==='bot' && m.offer){
+        html += offerHtml(m.offer);
+      }
+
+      if(m.role==='bot' && m.suggestHuman){
+        needsHuman = true;
+      }
     }
+
+    if(needsHuman){
+      html += humanHtml();
+    }
+    
     if(history.length===0){
       html += `<div class="quick-questions alucia-quick">
         <button data-q="¿Por qué vino así mi recibo?">¿Por qué vino así?</button>

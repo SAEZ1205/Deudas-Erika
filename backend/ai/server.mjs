@@ -7,7 +7,11 @@ import { resolve } from 'node:path'
 // =====================================================
 
 async function loadEnv() {
-  for (const file of ['.env', '.env.local']) {
+  // .env.local tiene prioridad sobre .env.
+  // Las variables ya definidas por el sistema conservan prioridad.
+  const protectedKeys = new Set(Object.keys(process.env))
+
+  for (const file of ['.env.local', '.env']) {
     try {
       const text = await readFile(resolve(file), 'utf8')
 
@@ -23,7 +27,11 @@ async function loadEnv() {
         const key = line.slice(0, i).trim()
         const value = line.slice(i + 1).trim()
 
-        if (value && !process.env[key]) {
+        if (!value || protectedKeys.has(key)) continue
+
+        // El primer archivo que define la variable gana.
+        // Como .env.local se procesa primero, tiene prioridad.
+        if (!process.env[key]) {
           process.env[key] = value
         }
       }
@@ -34,7 +42,7 @@ async function loadEnv() {
 await loadEnv()
 
 // =====================================================
-// ESCENARIOS LEGACY / FALLBACK
+// ESCENARIOS LEGACY / FALLBACK CONTROLADO
 // =====================================================
 
 const scenarios = JSON.parse(
@@ -43,6 +51,14 @@ const scenarios = JSON.parse(
     'utf8'
   )
 )
+
+const ALLOW_DEMO_FALLBACK =
+  ['1', 'true', 'yes']
+    .includes(
+      String(
+        process.env.ALLOW_DEMO_FALLBACK || ''
+      ).toLowerCase()
+    )
 
 // =====================================================
 // DATA ENGINE
@@ -69,8 +85,14 @@ const demoClients = {
   }
 }
 
+const DATA_DRIVEN_SCENARIOS =
+  new Set(
+    Object.keys(demoClients)
+  )
+
 async function getFinancialFacts(scenario) {
-  const client = demoClients[scenario]
+  const client =
+    demoClients[scenario]
 
   if (!client) {
     return null
@@ -103,21 +125,287 @@ async function getFinancialFacts(scenario) {
   }
 }
 
+async function resolveScenarioFacts(scenario) {
+  if (
+    !DATA_DRIVEN_SCENARIOS
+      .has(scenario)
+  ) {
+    return {
+      facts:
+        scenarios[scenario] ||
+        scenarios.current,
+      dataSource: 'legacy-scenario',
+      unavailable: false
+    }
+  }
+
+  const financialFacts =
+    await getFinancialFacts(
+      scenario
+    )
+
+  if (financialFacts) {
+    return {
+      facts: financialFacts,
+      dataSource: 'data-engine',
+      unavailable: false
+    }
+  }
+
+  if (ALLOW_DEMO_FALLBACK) {
+    console.warn(
+      `DataEngine no disponible para "${scenario}". ` +
+      'Se usa fallback demo porque ALLOW_DEMO_FALLBACK=true.'
+    )
+
+    return {
+      facts:
+        scenarios[scenario] ||
+        scenarios.current,
+      dataSource: 'demo-fallback',
+      unavailable: false
+    }
+  }
+
+  return {
+    facts: null,
+    dataSource: 'unavailable',
+    unavailable: true
+  }
+}
+
 // =====================================================
 // UTILIDADES
 // =====================================================
 
-const money = (n) =>
-  `S/${Number(n).toFixed(2)}`
+const money = (n) => {
+  const value =
+    Number(n)
+
+  return Number.isFinite(value)
+    ? `S/${value.toFixed(2)}`
+    : null
+}
 
 const norm = (s = '') =>
-  s
+  String(s)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+function normalizeHistory(
+  history = [],
+  currentMessage = ''
+) {
+  const clean =
+    Array.isArray(history)
+      ? history.filter(Boolean)
+      : []
+
+  if (clean.length === 0) {
+    return []
+  }
+
+  const last =
+    clean[clean.length - 1]
+
+  const isCurrentMessageAlreadyIncluded =
+    last?.role === 'user' &&
+    norm(last?.text || '') ===
+      norm(currentMessage)
+
+  return isCurrentMessageAlreadyIncluded
+    ? clean.slice(0, -1)
+    : clean
+}
+
+function friendlyChargeDescription(
+  description = ''
+) {
+  const clean =
+    String(description)
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  if (!clean) {
+    return 'un cargo nuevo'
+  }
+
+  const gb =
+    clean.match(
+      /(\d+(?:[.,]\d+)?)\s*gb/i
+    )
+
+  const days =
+    clean.match(
+      /(\d+)\s*d[ií]as?/i
+    )
+
+  if (gb && days) {
+    return (
+      `un paquete de ${gb[1]} GB ` +
+      `por ${days[1]} días`
+    )
+  }
+
+  if (gb) {
+    return `un paquete de ${gb[1]} GB`
+  }
+
+  return clean
+}
+
+function humanSourceLabel(
+  source = ''
+) {
+  const key =
+    norm(source)
+
+  if (key.includes('facturacion')) {
+    return 'Facturación'
+  }
+
+  if (key.includes('orden')) {
+    return 'Órdenes'
+  }
+
+  if (
+    key.includes('nota') &&
+    key.includes('credito')
+  ) {
+    return 'Notas de crédito'
+  }
+
+  if (key.includes('planta')) {
+    return 'Planta'
+  }
+
+  return String(source).trim()
+}
+
+function buildSourceText(
+  evidence = []
+) {
+  const labels =
+    [
+      ...new Set(
+        evidence
+          .map(item => {
+            if (
+              !item ||
+              typeof item !== 'object'
+            ) {
+              return ''
+            }
+
+            return humanSourceLabel(
+              item.source || ''
+            )
+          })
+          .filter(Boolean)
+      )
+    ]
+
+  if (labels.length === 0) {
+    return ''
+  }
+
+  if (labels.length === 1) {
+    return (
+      `Respaldado con datos de ` +
+      `${labels[0]}.`
+    )
+  }
+
+  const last =
+    labels[labels.length - 1]
+
+  const first =
+    labels
+      .slice(0, -1)
+      .join(', ')
+
+  return (
+    `Respaldado con datos de ` +
+    `${first} y ${last}.`
+  )
+}
+
+function extractMoneyValues(
+  text = ''
+) {
+  const values =
+    new Set()
+
+  const source =
+    String(text)
+
+  for (
+    const match of source.matchAll(
+      /S\/\s*(\d+(?:[.,]\d{1,2})?)/gi
+    )
+  ) {
+    values.add(
+      Number(
+        match[1]
+          .replace(',', '.')
+      ).toFixed(2)
+    )
+  }
+
+  for (
+    const match of source.matchAll(
+      /(\d+(?:[.,]\d{1,2})?)\s+soles\b/gi
+    )
+  ) {
+    values.add(
+      Number(
+        match[1]
+          .replace(',', '.')
+      ).toFixed(2)
+    )
+  }
+
+  return values
+}
+
+function generatedAmountsAreSafe(
+  generatedText,
+  baseText
+) {
+  const allowed =
+    extractMoneyValues(baseText)
+
+  const generated =
+    extractMoneyValues(
+      generatedText
+    )
+
+  for (const value of generated) {
+    if (!allowed.has(value)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+function cleanModelText(
+  text = ''
+) {
+  return String(text)
+    .replace(/\*\*/g, '')
+    .replace(/__/g, '')
+    .replace(/`/g, '')
+    .replace(
+      /^\s*[-•]\s+/gm,
+      ''
+    )
+    .trim()
+}
 
 // =====================================================
 // OFERTAS DEMO
@@ -129,7 +417,8 @@ const offers = {
     name: '500 GB',
     price: 59.90,
     benefit: 'Más datos',
-    banner: '/promos/lucia-normal-500.webp'
+    banner:
+      '/promos/lucia-normal-500.webp'
   },
 
   discount: {
@@ -137,7 +426,8 @@ const offers = {
     name: '170 GB',
     price: 45.90,
     benefit: 'Plan gamer',
-    banner: '/promos/lucia-discount-170.webp'
+    banner:
+      '/promos/lucia-discount-170.webp'
   },
 
   proration: {
@@ -145,15 +435,417 @@ const offers = {
     name: '250 GB',
     price: 49.90,
     benefit: 'Plan familiar',
-    banner: '/promos/lucia-proration-250.webp'
+    banner:
+      '/promos/lucia-proration-250.webp'
   },
 
   reconnection: {
     id: 'POST-280',
     name: '280 GB',
     price: 55.90,
-    benefit: 'Apps y llamadas ilimitadas',
-    banner: '/promos/lucia-reconnection-280.webp'
+    benefit:
+      'Apps y llamadas ilimitadas',
+    banner:
+      '/promos/lucia-reconnection-280.webp'
+  }
+}
+
+// =====================================================
+// CONCEPTOS EN LENGUAJE SIMPLE
+// =====================================================
+
+const CONCEPTS = {
+  prorrateo: {
+    aliases: [
+      'prorrateo',
+      'ajuste proporcional',
+      'cobro proporcional',
+      'cargo proporcional'
+    ],
+
+    definition:
+      'Es un ajuste que puede aparecer cuando cambia alguna condición del servicio durante el periodo de facturación. El cobro se adapta a ese cambio según corresponda.'
+  },
+
+  reconexion: {
+    aliases: [
+      'reconexion',
+      'reactivacion',
+      'cargo por reconexion'
+    ],
+
+    definition:
+      'Es un cargo que puede aparecer cuando un servicio que estaba suspendido vuelve a activarse.'
+  },
+
+  'fin de descuento': {
+    aliases: [
+      'fin de descuento',
+      'fin de promocion',
+      'promocion vencida'
+    ],
+
+    definition:
+      'Ocurre cuando termina una promoción temporal y el recibo vuelve al precio que corresponde sin ese beneficio.'
+  },
+
+  'cambio de plan': {
+    aliases: [
+      'cambio de plan',
+      'cambio de servicio'
+    ],
+
+    definition:
+      'Es una modificación de las condiciones del servicio. Si ocurre durante un periodo de facturación, puede generar ajustes en el recibo.'
+  },
+
+  'cuota de equipo': {
+    aliases: [
+      'cuota de equipo',
+      'equipo financiado'
+    ],
+
+    definition:
+      'Es el pago mensual correspondiente a un equipo financiado y puede aparecer separado del cargo del plan.'
+  },
+
+  'nota de credito': {
+    aliases: [
+      'nota de credito',
+      'ajuste a favor'
+    ],
+
+    definition:
+      'Es un ajuste a favor del cliente que reduce total o parcialmente un importe facturado.'
+  },
+
+  'cargo unico': {
+    aliases: [
+      'cargo unico',
+      'cobro unico'
+    ],
+
+    definition:
+      'Es un cobro que se aplica una sola vez y no necesariamente vuelve a aparecer en los siguientes recibos.'
+  },
+
+  'cargo recurrente': {
+    aliases: [
+      'cargo recurrente',
+      'cobro recurrente'
+    ],
+
+    definition:
+      'Es un cobro que puede repetirse periódicamente mientras el servicio asociado permanezca activo.'
+  },
+
+  'renta adelantada': {
+    aliases: [
+      'renta adelantada'
+    ],
+
+    definition:
+      'Es un cobro correspondiente a un periodo de servicio que se factura por adelantado.'
+  },
+
+  'renta vencida': {
+    aliases: [
+      'renta vencida'
+    ],
+
+    definition:
+      'Es un cobro correspondiente a un periodo de servicio que ya transcurrió.'
+  }
+}
+
+function findConceptInText(
+  raw = ''
+) {
+  const t =
+    norm(raw)
+
+  for (
+    const [concept, config]
+    of Object.entries(CONCEPTS)
+  ) {
+    const hit =
+      config.aliases.some(
+        alias =>
+          t.includes(
+            norm(alias)
+          )
+      )
+
+    if (hit) {
+      return concept
+    }
+  }
+
+  return null
+}
+
+// =====================================================
+// CONTEXTO CONVERSACIONAL
+// =====================================================
+
+function findLastConcept(
+  history = []
+) {
+  const recent =
+    history
+      .slice(-8)
+      .reverse()
+
+  for (
+    const message
+    of recent
+  ) {
+    const concept =
+      findConceptInText(
+        message?.text || ''
+      )
+
+    if (concept) {
+      return concept
+    }
+  }
+
+  return null
+}
+
+function countConfusion(
+  history = []
+) {
+  return history.filter(
+    message => {
+      if (
+        message?.role !== 'user'
+      ) {
+        return false
+      }
+
+      const text =
+        norm(
+          message?.text || ''
+        )
+
+      return (
+        /\b(no entendi|no entiendo|sigo sin entender|todavia no entiendo|aun no entiendo|explicame otra vez|explicalo de nuevo|no me queda claro|tengo dudas)\b/
+          .test(text)
+      )
+    }
+  ).length
+}
+
+// =====================================================
+// DETECCIÓN DE INTENCIÓN
+// =====================================================
+
+function detectIntent(
+  raw,
+  history = []
+) {
+  const t =
+    norm(raw)
+
+  if (!t) {
+    return {
+      intent: 'OTRO'
+    }
+  }
+
+  // 1. Solicitud explícita de humano.
+  if (
+    /\b(asesor|humano|operador|persona real|hablar con alguien|hablar con una persona|llamar|llamen)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'SOLICITAR_HUMANO'
+    }
+  }
+
+  // 2. Cliente desconoce o disputa un cargo.
+  if (
+    /\b(nunca pedi|no pedi|no reconozco|no solicite|yo no active|yo no lo active|que es este cobro|que cobro es este|ese cobro no es mio)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CARGO_NO_RECONOCIDO'
+    }
+  }
+
+  // 3. Pregunta conceptual explícita.
+  const conceptHit =
+    findConceptInText(t)
+
+  if (
+    conceptHit &&
+    /\b(que es|q es|que significa|explicame|como funciona|no entiendo que|no entiendo el|no entiendo la)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'EXPLICAR_CONCEPTO',
+      concept:
+        conceptHit
+    }
+  }
+
+  // 4. Pregunta contextual: "¿y eso qué es?"
+  if (
+    /\b(eso|ese cobro|ese cargo|ese ajuste)\b/
+      .test(t) &&
+    /\b(que es|q es|que significa|como funciona)\b/
+      .test(t)
+  ) {
+    const lastConcept =
+      findLastConcept(
+        history
+      )
+
+    if (lastConcept) {
+      return {
+        intent:
+          'EXPLICAR_CONCEPTO',
+        concept:
+          lastConcept
+      }
+    }
+  }
+
+  // 5. Usuario no comprendió la explicación.
+  if (
+    /\b(no entendi|no entiendo|sigo sin entender|todavia no entiendo|aun no entiendo|explicame otra vez|explicalo de nuevo|no me queda claro|tengo dudas)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'NO_COMPRENDIO'
+    }
+  }
+
+  // 6. Usuario confirma comprensión.
+  if (
+    /\b(si quedo claro|si entendi|ya entendi|ah ya|ya esta claro|listo gracias|gracias ya entendi|ok gracias|entendido)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONFIRMAR_COMPRENSION'
+    }
+  }
+
+  // 7. Pregunta por monto de ajuste/prorrateo.
+  const lastConcept =
+    findLastConcept(
+      history
+    )
+
+  if (
+    /\b(cuanto|que monto|monto)\b/
+      .test(t) &&
+    (
+      /\b(ajuste|prorrateo|proporcional|ese cobro|ese cargo)\b/
+        .test(t) ||
+      lastConcept ===
+        'prorrateo'
+    )
+  ) {
+    return {
+      intent:
+        'CONSULTAR_MONTO_AJUSTE'
+    }
+  }
+
+  // 8. Pregunta si un cargo se repetirá.
+  if (
+    /\b(volvera|volver a salir|otra vez|proximo mes|siguiente mes|se repite|se repetira|recurrente)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONSULTAR_REPETICION'
+    }
+  }
+
+  if (
+    /\b(que es ese paquete|que es el paquete|que paquete es|que incluye ese paquete|ese paquete que es)\b/
+      .test(t)
+  ) {
+    return {
+      intent: 'EXPLICAR_CARGO'
+    }
+  }
+
+  // 9. Pregunta por variación del recibo.
+  if (
+    /\b(pq|porque|por que|xq|mas caro|subio|aumento|mas alto|vario|cambio el recibo|diferencia|de donde salio|por que cambio)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'EXPLICAR_VARIACION'
+    }
+  }
+
+  // 10. Recibo anterior.
+  if (
+    /\b(mes pasado|recibo anterior|cuanto pague antes|cuanto pague el mes pasado|anterior)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONSULTAR_RECIBO_ANTERIOR'
+    }
+  }
+
+  // 11. Consulta general del recibo.
+  if (
+    /\b(recibo|cuanto debo|ver mi recibo|monto total|total del recibo)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONSULTAR_RECIBO'
+    }
+  }
+
+  // 12. Consulta sobre plan.
+  if (
+    /\b(que plan tengo|mi plan|megas de mi plan|gigas de mi plan)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONSULTAR_PLAN'
+    }
+  }
+
+  // 13. Ofertas.
+  if (
+    /\b(oferta|promo|promocion|mejorar plan|mas gigas|otro plan)\b/
+      .test(t)
+  ) {
+    return {
+      intent:
+        'CONSULTAR_OFERTA'
+    }
+  }
+
+  // 14. Saludo.
+  if (
+    /^(hola|holi|buenas|oe|hey)\b/
+      .test(t)
+  ) {
+    return {
+      intent: 'SALUDO'
+    }
+  }
+
+  return {
+    intent: 'OTRO'
   }
 }
 
@@ -167,19 +859,25 @@ function deterministic(
   history = [],
   financialFacts = null
 ) {
-  // --------------------------------------------------
-  // FUENTE DE DATOS
-  // --------------------------------------------------
-
   const s =
     financialFacts ||
     scenarios[scenario] ||
     scenarios.current
 
-  const t = norm(message)
+  const t =
+    norm(message)
+
+  const intentResult =
+    detectIntent(
+      message,
+      history
+    )
+
+  const intent =
+    intentResult.intent
 
   // --------------------------------------------------
-  // NORMALIZAR FORMATO VIEJO / DATA ENGINE
+  // NORMALIZAR FORMATO LEGACY / DATA ENGINE
   // --------------------------------------------------
 
   const previousTotal =
@@ -215,8 +913,9 @@ function deterministic(
     'VERIFIED'
 
   const requiresHandoff =
-    s.requires_handoff ??
-    false
+    Boolean(
+      s.requires_handoff
+    )
 
   const charges =
     Array.isArray(s.charges)
@@ -228,117 +927,101 @@ function deterministic(
       ? s.evidence
       : []
 
-  // --------------------------------------------------
-  // FUENTE LEGIBLE
-  // --------------------------------------------------
-
-  const sourceText = evidence
-    .map(item => {
-      if (typeof item === 'string') {
-        return item
-      }
-
-      if (!item || typeof item !== 'object') {
-        return ''
-      }
-
-      const parts = [
-        item.source,
-        item.event,
-        item.description
-      ].filter(Boolean)
-
-      return parts.join(': ')
-    })
-    .filter(Boolean)
-    .join(' · ')
-
-  // --------------------------------------------------
-  // CONSTRUCTOR DE RESPUESTA
-  // --------------------------------------------------
+  const sourceText =
+    buildSourceText(
+      evidence
+    )
 
   const answer = (
     text,
     extra = {}
-  ) => ({
-    answer: text,
-    source: sourceText,
-    suggestHuman: requiresHandoff,
-    showOffer: false,
-    evidenceStatus,
-    ...extra
-  })
+  ) => {
+    const {
+      showSource = false,
+      suggestHuman = false,
+      ...rest
+    } = extra
+
+    return {
+      answer: text,
+      source:
+        showSource
+          ? sourceText
+          : '',
+      suggestHuman,
+      showOffer: false,
+      evidenceStatus,
+      intent,
+      ...rest
+    }
+  }
 
   // --------------------------------------------------
-  // EXPLICACIÓN SEGÚN DATA ENGINE
+  // RESPUESTA SEGURA DEL ESCENARIO
   // --------------------------------------------------
 
   let explanation =
     s.explanation ||
-    'No encuentro una causa confirmada en la evidencia disponible.'
+    'No encuentro una causa confirmada en la información disponible.'
 
-  // --------------------------------------------------
-  // RECONEXIÓN
-  // --------------------------------------------------
-
-  if (engineScenario === 'RECONNECTION') {
+  if (
+    engineScenario ===
+    'RECONNECTION'
+  ) {
     const reconnectionCharge =
       charges.find(
         charge =>
           norm(
             charge.description || ''
-          ).includes('reconexion')
+          ).includes(
+            'reconexion'
+          )
       )
 
     const amount =
       reconnectionCharge?.amount ??
-      Math.abs(difference || 0)
+      (
+        difference != null
+          ? Math.abs(
+              difference
+            )
+          : null
+      )
 
     explanation =
-      `El recibo actual es de ${money(currentTotal)} ` +
-      `y el anterior fue de ${money(previousTotal)}. ` +
-      `La diferencia es de ${money(Math.abs(difference))}. ` +
-      `En el recibo aparece un cargo por reconexión de ` +
-      `${money(amount)}, respaldado por registros de ` +
-      `suspensión y reactivación del servicio.`
+      `Tu recibo subió ${money(Math.abs(difference))} por un cargo de reconexión. ` +
+      `Pude confirmar que el servicio estuvo suspendido y luego fue reactivado.`
   }
 
-  // --------------------------------------------------
-  // PRORRATEO
-  // --------------------------------------------------
-
-  else if (engineScenario === 'PRORATION') {
+  else if (
+    engineScenario ===
+    'PRORATION'
+  ) {
     const amount =
       s.proration_amount ??
       charges.find(
         charge =>
           norm(
             charge.group || ''
-          ).includes('proporcional')
+          ).includes(
+            'proporcional'
+          )
       )?.amount
 
     explanation =
-      `El recibo actual es de ${money(currentTotal)} ` +
-      `y el anterior fue de ${money(previousTotal)}. ` +
-      `La diferencia total es de ${money(Math.abs(difference))}. ` +
-      `En el recibo actual aparece un cargo fijo proporcional ` +
-      `de ${money(amount)}. ` +
-      `Además, existe una orden de cambio terminada asociada ` +
-      `al mismo servicio.`
+      `Tu recibo subió ${money(Math.abs(difference))} este mes. ` +
+      `Durante el periodo hubo un cambio en tu servicio y por eso aparece ` +
+      `un cobro proporcional. Pude confirmar ese cambio.`
 
     if (
       Array.isArray(s.limitations) &&
       s.limitations.length > 0
     ) {
       explanation +=
-        ` No puedo confirmar el cálculo exacto por días ` +
-        `porque la evidencia disponible no permite validarlo.`
+        ` No tengo información suficiente para mostrarte ` +
+        `cómo se calculó exactamente día por día.`
     }
   }
-
-  // --------------------------------------------------
-  // CARGO SIN EVIDENCIA
-  // --------------------------------------------------
 
   else if (
     engineScenario ===
@@ -348,66 +1031,386 @@ function deterministic(
       charges[0]
 
     const description =
-      charge?.description ||
-      'un cargo nuevo'
+      friendlyChargeDescription(
+        charge?.description || ''
+      )
 
     const amount =
       charge?.amount
 
     explanation =
-      `Detecté ${description}` +
+      `Encontré ${description}` +
       (
         amount != null
           ? ` por ${money(amount)}`
           : ''
       ) +
-      ` en el recibo actual. ` +
-      `Sin embargo, no encontré evidencia suficiente ` +
-      `para confirmar el origen de ese cargo. ` +
-      `Para evitar darte una explicación no verificada, ` +
-      `este caso debe revisarlo un asesor.`
+      ` en tu recibo. ` +
+      `Lo que no puedo confirmar es cómo se originó ese cargo. ` +
+      `Como no tengo información suficiente para explicarte su origen con seguridad, prefiero que un asesor lo revise contigo.`
   }
 
   // --------------------------------------------------
-  // SOLICITUD DE ASESOR
+  // ROUTING POR INTENCIÓN
   // --------------------------------------------------
 
   if (
-    /(asesor|humano|operador|hablar con alguien)/
-      .test(t)
+    intent ===
+    'SOLICITAR_HUMANO'
   ) {
     return answer(
-      'Claro. Voy a conservar el contexto para que un asesor continúe sin pedirte que repitas todo.',
+      'Claro. Voy a conservar lo que ya revisamos para que el asesor pueda continuar desde aquí.',
       {
         suggestHuman: true
       }
     )
   }
 
-  // --------------------------------------------------
-  // OFERTAS
-  // --------------------------------------------------
+  if (
+    intent ===
+    'CARGO_NO_RECONOCIDO'
+  ) {
+    if (
+      evidenceStatus === 'NONE' ||
+      requiresHandoff
+    ) {
+      return answer(
+        explanation,
+        {
+          showSource: true,
+          suggestHuman: true
+        }
+      )
+    }
+
+    if (
+      engineScenario ===
+      'PRORATION'
+    ) {
+      return answer(
+        'Entiendo la preocupación. Puedo confirmar que existe un cambio registrado y un ajuste proporcional en tu recibo, pero esos datos no me permiten saber si tú solicitaste personalmente ese cambio. Si no lo reconoces, puedo ayudarte a revisarlo con un asesor.',
+        {
+          showSource: true,
+          suggestHuman: true
+        }
+      )
+    }
+
+    if (
+      engineScenario ===
+      'RECONNECTION'
+    ) {
+      return answer(
+        'Entiendo la preocupación. Puedo confirmar que el cargo de reconexión coincide con registros de suspensión y reactivación del servicio, pero esos datos no me permiten saber si tú solicitaste personalmente esa gestión. Si no la reconoces, puedo ayudarte a revisarla con un asesor.',
+        {
+          showSource: true,
+          suggestHuman: true
+        }
+      )
+    }
+
+    return answer(
+      'Entiendo la preocupación. Puedo confirmar el origen del cobro en los registros disponibles, pero eso no me permite saber si tú lo solicitaste personalmente. Si no lo reconoces, puedo ayudarte a revisarlo con un asesor.',
+      {
+        showSource: true,
+        suggestHuman: true
+      }
+    )
+  }
 
   if (
-    /(oferta|promo|mejorar.*plan|mas gigas|otro plan)/
-      .test(t)
+    intent ===
+    'EXPLICAR_CONCEPTO'
+  ) {
+    const concept =
+      intentResult.concept
+
+    const definition =
+      CONCEPTS[concept]
+        ?.definition
+
+    if (definition) {
+      return answer(
+        definition,
+        {
+          concept
+        }
+      )
+    }
+  }
+  if (
+    intent === 'EXPLICAR_CARGO'
+  ) {
+    if (
+      engineScenario === 'UNVERIFIED_CHARGE'
+    ) {
+      const charge = charges[0]
+
+      const description =
+        friendlyChargeDescription(
+          charge?.description || ''
+        )
+
+      const amount =
+        charge?.amount
+
+      return answer(
+        `Es ${description}` +
+        (
+          amount != null
+            ? ` que aparece en tu recibo por ${money(amount)}`
+            : ''
+        ) +
+        `. Puedo decirte qué cargo es, pero no tengo información suficiente para confirmar cómo se originó.`
+      )
+    }
+
+    return answer(
+      'Puedo explicarte el cargo si aparece identificado en la información disponible.'
+    )
+  }
+  
+  if (
+    intent ===
+    'NO_COMPRENDIO'
+  ) {
+    const previousConfusions =
+      countConfusion(
+        history
+      )
+
+    if (
+      previousConfusions >= 1
+    ) {
+      return answer(
+        'Entiendo. Para ayudarte mejor, puedo derivarte con un asesor y conservar lo que ya revisamos para que continúe desde aquí.',
+        {
+          suggestHuman: true,
+          reformulationStage: 2
+        }
+      )
+    }
+
+    if (
+      engineScenario ===
+        'PRORATION' ||
+      scenario ===
+        'proration'
+    ) {
+      return answer(
+        'Claro. Hubo un cambio en tu servicio durante este periodo y por eso aparece un ajuste en el recibo. Puedo confirmar ese cambio, pero no tengo información suficiente para mostrarte cómo se calculó exactamente.',
+        {
+          reformulationStage: 1
+        }
+      )
+    }
+
+    if (
+      engineScenario ===
+        'RECONNECTION' ||
+      scenario ===
+        'reconnection'
+    ) {
+      const reconnectionCharge =
+        charges.find(
+          charge =>
+            norm(
+              charge.description || ''
+            ).includes(
+              'reconexion'
+            )
+        )
+
+      const amount =
+        reconnectionCharge?.amount ??
+        (
+          difference != null
+            ? Math.abs(
+                difference
+              )
+            : null
+        )
+
+      return answer(
+        `Claro. Pude confirmar que el servicio estuvo suspendido y después fue reactivado. Por esa reconexión aparece un cargo de ${money(amount)} en tu recibo.`,
+        {
+          reformulationStage: 1
+        }
+      )
+    }
+
+    if (
+      engineScenario ===
+        'UNVERIFIED_CHARGE' ||
+      evidenceStatus ===
+        'NONE'
+    ) {
+      return answer(
+        'En este caso no puedo simplificar una causa porque no tengo información suficiente para confirmarla. Para no inventar una explicación, lo correcto es que lo revise un asesor.',
+        {
+          suggestHuman: true,
+          reformulationStage: 2
+        }
+      )
+    }
+
+    return answer(
+      'Puedo explicarlo de otra manera, pero con la información disponible no tengo más datos confirmados para agregar. Si todavía tienes dudas, puedo derivarte con un asesor.',
+      {
+        reformulationStage: 1
+      }
+    )
+  }
+
+  if (
+    intent ===
+    'CONFIRMAR_COMPRENSION'
+  ) {
+    return answer(
+      'Perfecto. Me alegra que haya quedado claro. Si quieres, podemos revisar otra parte de tu recibo.'
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_MONTO_AJUSTE'
+  ) {
+    if (
+      engineScenario ===
+        'PRORATION' ||
+      scenario ===
+        'proration'
+    ) {
+      const amount =
+        s.proration_amount ??
+        charges.find(
+          charge =>
+            norm(
+              charge.group || ''
+            ).includes(
+              'proporcional'
+            )
+        )?.amount
+
+      if (amount != null) {
+        return answer(
+          `El cobro proporcional que aparece en tu recibo es de ${money(amount)}.`,
+          {
+            showSource: true
+          }
+        )
+      }
+    }
+
+    return answer(
+      'Con la información disponible no puedo identificar un monto de ajuste confirmado.'
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_REPETICION'
+  ) {
+    return answer(
+      'Con la información disponible no puedo confirmar si ese cargo volverá a aparecer en otro recibo.'
+    )
+  }
+
+  if (
+    intent ===
+    'EXPLICAR_VARIACION'
+  ) {
+    if (
+      evidenceStatus ===
+        'NONE' ||
+      requiresHandoff
+    ) {
+      return answer(
+        explanation,
+        {
+          showSource: true,
+          suggestHuman: true
+        }
+      )
+    }
+
+    return answer(
+      explanation,
+      {
+        showSource: true
+      }
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_RECIBO_ANTERIOR'
+  ) {
+    if (
+      previousTotal == null
+    ) {
+      return answer(
+        'No tengo suficiente información para consultar el recibo anterior.'
+      )
+    }
+
+    return answer(
+      `El recibo anterior fue de ${money(previousTotal)}.`,
+      {
+        showSource: true
+      }
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_RECIBO'
+  ) {
+    if (
+      currentTotal == null
+    ) {
+      return answer(
+        'No tengo suficiente información para consultar el total actual.'
+      )
+    }
+
+    return answer(
+      `Tu recibo actual es de ${money(currentTotal)}.`,
+      {
+        showSource: true
+      }
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_PLAN'
+  ) {
+    return answer(
+      'Por ahora puedo ayudarte con la explicación de tu recibo. Para revisar el detalle de tu plan puedes ir a la sección Mi plan o pedir ayuda a un asesor.'
+    )
+  }
+
+  if (
+    intent ===
+    'CONSULTAR_OFERTA'
   ) {
     const resolved =
       scenario === 'current' ||
       history.some(
         m =>
-          m.role === 'user' &&
-          /(ya entendi|ah ya|listo|gracias|ok)/
+          m?.role === 'user' &&
+          /\b(ya entendi|ah ya|listo|gracias|ok|entendido)\b/
             .test(
               norm(
-                m.text || ''
+                m?.text || ''
               )
             )
       )
 
     if (!resolved) {
       return answer(
-        'Primero terminemos de aclarar el cobro actual. Después revisamos una oferta sin mezclar una venta con tu duda.'
+        'Primero terminemos de aclarar el cobro actual. Después podemos revisar una oferta sin mezclar una venta con tu duda.'
       )
     }
 
@@ -424,189 +1427,51 @@ function deterministic(
     )
   }
 
-  // --------------------------------------------------
-  // RECIBO ANTERIOR
-  // --------------------------------------------------
-
   if (
-    /(mes pasado|julio|anterior|cuanto pague)/
-      .test(t)
-  ) {
-    if (
-      previousTotal == null ||
-      currentTotal == null
-    ) {
-      return answer(
-        'No tengo suficiente información para comparar ambos recibos.'
-      )
-    }
-
-    return answer(
-      `El recibo anterior fue de ${money(previousTotal)} ` +
-      `y el actual es de ${money(currentTotal)}. ` +
-      `La diferencia es de ${money(Math.abs(difference))}.`
-    )
-  }
-
-  // --------------------------------------------------
-  // PRORRATEO
-  // --------------------------------------------------
-
-  if (
-    /(prorr|proporcional)/
-      .test(t)
-  ) {
-    if (
-      engineScenario === 'PRORATION' ||
-      scenario === 'proration'
-    ) {
-      const amount =
-        s.proration_amount ??
-        charges.find(
-          charge =>
-            norm(
-              charge.group || ''
-            ).includes('proporcional')
-        )?.amount
-
-      return answer(
-        `En el recibo aparece un cargo fijo proporcional de ${money(amount)}. ` +
-        `También encontramos una orden de cambio terminada asociada al servicio. ` +
-        `No puedo reconstruir el cálculo exacto por días con la evidencia disponible.`
-      )
-    }
-
-    return answer(
-      'En la evidencia disponible no aparece un cargo fijo proporcional confirmado.'
-    )
-  }
-
-  // --------------------------------------------------
-  // RECONEXIÓN
-  // --------------------------------------------------
-
-  if (
-    /(reconex|reactiv|suspend)/
-      .test(t)
-  ) {
-    if (
-      engineScenario ===
-        'RECONNECTION' ||
-      scenario ===
-        'reconnection'
-    ) {
-      const reconnectionCharge =
-        charges.find(
-          charge =>
-            norm(
-              charge.description || ''
-            ).includes('reconexion')
-        )
-
-      const amount =
-        reconnectionCharge?.amount ??
-        Math.abs(difference || 0)
-
-      return answer(
-        `Se detectó un cargo por reconexión de ${money(amount)}. ` +
-        `La evidencia también registra una suspensión y una reactivación ` +
-        `con cargo para el mismo servicio.`
-      )
-    }
-
-    return answer(
-      'En la evidencia disponible no aparece un cargo de reconexión confirmado.'
-    )
-  }
-
-  // --------------------------------------------------
-  // DESCUENTOS
-  // --------------------------------------------------
-
-  if (
-    /(descuent|bonific)/
-      .test(t)
-  ) {
-    if (
-      scenario === 'discount'
-    ) {
-      return answer(
-        `Este mes se aplicó una bonificación de ${money(Math.abs(difference))}.`
-      )
-    }
-
-    return answer(
-      'En la evidencia disponible no aparece una bonificación confirmada.'
-    )
-  }
-
-  // --------------------------------------------------
-  // PREGUNTA GENERAL DEL RECIBO
-  // --------------------------------------------------
-
-  const asksAboutBill =
-    /(por\s*que|porque|pq|xq|caro|subio|aumento|cobr|cargo|recibo|monto|total|salio|aparecio|de\s*donde|donde|diferencia|variar|vario|cambio|no\s*entiendo|no\s*entendi)/
-      .test(t)
-
-  if (asksAboutBill) {
-    if (
-      evidenceStatus === 'NONE' ||
-      requiresHandoff
-    ) {
-      return answer(
-        explanation,
-        {
-          suggestHuman: true
-        }
-      )
-    }
-
-    return answer(
-      explanation
-    )
-  }
-
-  // --------------------------------------------------
-  // SALUDO
-  // --------------------------------------------------
-
-  if (
-    /^(hola|holi|buenas|oe|hey)/
-      .test(t)
+    intent ===
+    'SALUDO'
   ) {
     return answer(
-      'Hola 🙂. ¿Qué quieres revisar de tu recibo?'
+      'Hola. ¿Qué quieres revisar de tu recibo?'
     )
   }
-
-  // --------------------------------------------------
-  // CONFIRMACIÓN DEL USUARIO
-  // --------------------------------------------------
-
-  if (
-    /^(ah ya|ya entendi|entendi|ok|listo|gracias)/
-      .test(t)
-  ) {
-    return answer(
-      'Perfecto, dejamos aclarada esa parte. ¿Qué más quieres revisar?'
-    )
-  }
-
-  // --------------------------------------------------
-  // FALLBACK SEGURO
-  // --------------------------------------------------
 
   return answer(
-    'No encuentro esa información en la evidencia disponible. Para no inventarte una respuesta, este punto debe revisarlo un asesor.',
-    {
-      suggestHuman: true
-    }
+    'No estoy segura de haber entendido. Puedes preguntarme, por ejemplo, por qué cambió tu recibo, qué significa un cobro o de dónde salió un cargo.'
   )
 }
 
 // =====================================================
-// GEMINI
+// GEMINI: SOLO REDACCIÓN SELECTIVA
 // =====================================================
+
+function shouldUseGemini(
+  base
+) {
+  if (!base) {
+    return false
+  }
+
+  if (
+    base.suggestHuman
+  ) {
+    return false
+  }
+
+  if (
+    base.evidenceStatus ===
+      'NONE' ||
+    base.evidenceStatus ===
+      'UNAVAILABLE'
+  ) {
+    return false
+  }
+
+  return (
+    base.intent ===
+    'EXPLICAR_VARIACION'
+  )
+}
 
 async function withGemini(
   message,
@@ -621,163 +1486,167 @@ async function withGemini(
       ''
     ).trim()
 
-  if (!key) {
+  if (
+    !key ||
+    !shouldUseGemini(base)
+  ) {
     return base
   }
 
   const model =
     (
       process.env.GEMINI_MODEL ||
-      'gemini-2.5-flash'
+      'gemini-3.6-flash'
     ).trim()
 
-  const facts =
-    financialFacts ||
-    scenarios[scenario] ||
-    scenarios.current
+  const prior =
+    history
+      .slice(-4)
+      .map(
+        m =>
+          `${
+            m?.role === 'user'
+              ? 'Usuario'
+              : 'LucIA'
+          }: ${m?.text || ''}`
+      )
+      .join('\n')
 
   const system = `
 Eres LucIA, asistente de facturación de Movistar.
 
-Tu tarea es explicar al cliente su recibo
-en español natural, breve y sencillo.
+Tu única tarea es reescribir una respuesta segura ya validada.
+No decides causas, no haces cálculos y no agregas hechos.
 
-FUENTE DE VERDAD:
-${JSON.stringify(facts)}
+INTENT:
+${base.intent}
 
-REGLAS OBLIGATORIAS:
+EVIDENCE_STATUS:
+${base.evidenceStatus}
 
-1. No inventes montos.
-2. No inventes cargos.
-3. No inventes fechas.
-4. No inventes promociones.
-5. No inventes causas.
-6. No deduzcas información que no esté
-explícitamente respaldada por FUENTE DE VERDAD.
-
-Si evidence_status = "VERIFIED":
-puedes explicar la causa confirmada.
-
-Si evidence_status = "PARTIAL":
-explica únicamente lo que está comprobado
-y aclara qué parte no puede confirmarse.
-
-Si evidence_status = "NONE":
-NO afirmes una causa.
-Indica que el cargo aparece en el recibo,
-pero su origen no puede confirmarse
-con la evidencia disponible.
-
-Si requires_handoff = true:
-indica que el caso debe ser revisado
-por un asesor.
-
-Gemini únicamente redacta.
-La verdad financiera siempre proviene
-de FUENTE DE VERDAD.
-  `
-
-  const styleRules = `
-ESTILO DE RESPUESTA DE LucIA:
-
-- Habla como una asesora digital de atención al cliente.
-- Usa lenguaje cotidiano, claro y amable.
-- No copies nombres técnicos, nombres de columnas ni textos crudos del dataset.
-- No uses frases como "según la columna", "registro encontrado", "dataset", "CUSTOMER_KEY", "SUBSCRIBER_KEY" ni similares.
-- Mantén EXACTAMENTE los montos, fechas y hechos presentes en la evidencia.
-- No inventes causas, promociones, planes, fechas ni cálculos.
-
-Cuando evidence_status sea VERIFIED:
-- Explica la causa confirmada con seguridad.
-- Primero responde la pregunta del cliente.
-- Después explica brevemente qué evidencia permitió confirmarlo.
-
-Cuando evidence_status sea PARTIAL:
-- Explica únicamente lo que sí está demostrado.
-- Señala claramente qué parte no puede confirmarse.
-
-Cuando evidence_status sea NONE:
-- No afirmes el origen causal del cargo.
-- Sí puedes explicar qué cargo aparece en el recibo.
-- Di de forma natural que no hay suficiente información para confirmar por qué se originó.
-- Si requires_handoff es true, ofrece revisión con un asesor.
-
-FORMATO:
-- Respuestas breves: idealmente entre 2 y 5 frases.
-- Evita sonar robótica o legalista.
-- No repitas toda la información si el usuario hace una pregunta de seguimiento.
-- Si ya explicaste los montos en el mensaje anterior, responde directamente a la nueva duda.
-  `
-
-  const prior = history
-    .slice(-10)
-    .map(
-      m =>
-        `${
-          m.role === 'user'
-            ? 'Usuario'
-            : 'LucIA'
-        }: ${m.text || ''}`
-    )
-    .join('\n')
-
-  try {
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: 'POST',
-
-        headers: {
-          'Content-Type':
-            'application/json',
-
-          'x-goog-api-key':
-            key
-        },
-
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [
-              {
-                text:
-                  `${system}\n\n${styleRules}`
-              }
-            ]
-          },
-
-          contents: [
-            {
-              role: 'user',
-
-              parts: [
-                {
-                  text: `
-${prior}
-
-Usuario: ${message}
-
-Respuesta base segura:
+RESPUESTA SEGURA:
 ${base.answer}
 
-Redacta una respuesta natural, clara y breve sin cambiar ningún dato financiero ni inventar información.
-                  `.trim()
+REGLAS:
+- Conserva exactamente la verdad de RESPUESTA SEGURA.
+- No inventes montos, fechas, cargos, causas, planes ni eventos.
+- No agregues precisión que la respuesta segura no contiene.
+- Si la respuesta segura expresa una limitación, consérvala.
+- No conviertas una posibilidad en una afirmación.
+- No atribuyas una acción al cliente si la respuesta segura no lo confirma.
+- No uses Markdown.
+- Devuelve únicamente texto plano.
+  `.trim()
+
+  const prompt = `
+CONVERSACIÓN RECIENTE:
+${prior || 'Sin conversación previa.'}
+
+PREGUNTA ACTUAL:
+${message}
+
+Reescribe RESPUESTA SEGURA para una persona sin conocimientos de facturación.
+
+Objetivo de estilo:
+- responde directamente la duda;
+- usa palabras comunes;
+- usa frases cortas;
+- responde idealmente en 2 o 3 frases;
+- menciona solo los datos necesarios;
+- no recites toda la evidencia;
+- no saludes nuevamente;
+- no cambies ningún monto;
+- no agregues información nueva.
+
+VOZ DE LucIA:
+- habla siempre de "tú", nunca de "usted";
+- suena cercana, clara y profesional;
+- evita tono legal, administrativo o técnico;
+- evita expresiones como "evidencia disponible", "figura registrado" o "validación";
+- prefiere frases como "Pude confirmar", "En tu recibo aparece" y "Lo que no puedo confirmar es";
+- no agregues empatía genérica si el usuario solo está pidiendo información;
+- si el usuario expresa preocupación o rechazo de un cargo, reconoce brevemente esa preocupación;
+- no uses emojis.
+
+Para una pregunta sobre por qué cambió el recibo:
+- prioriza cuánto cambió;
+- explica la causa confirmada en palabras sencillas;
+- conserva cualquier limitación importante;
+- no es obligatorio mencionar el total anterior y actual;
+- no es obligatorio mencionar el importe de todos los componentes.
+  `.trim()
+
+  const controller =
+    new AbortController()
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      15000
+    )
+
+  try {
+    const r =
+      await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: 'POST',
+          signal:
+            controller.signal,
+
+          headers: {
+            'Content-Type':
+              'application/json',
+            'x-goog-api-key':
+              key
+          },
+
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [
+                {
+                  text: system
                 }
               ]
-            }
-          ],
+            },
 
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 220
-          }
-        })
-      }
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  {
+                    text: prompt
+                  }
+                ]
+              }
+            ],
+
+            generationConfig: {
+              maxOutputTokens:
+                1024,
+
+              thinkingConfig: {
+                thinkingLevel:
+                  'minimal'
+              }
+            }
+          })
+        }
+      )
+
+    clearTimeout(
+      timeout
     )
 
     if (!r.ok) {
+      const errorText =
+        await r.text()
+
       console.error(
         'Gemini respondió:',
-        r.status
+        r.status,
+        errorText
       )
 
       return base
@@ -786,30 +1655,115 @@ Redacta una respuesta natural, clara y breve sin cambiar ningún dato financiero
     const data =
       await r.json()
 
-    const text =
+    const candidate =
       data
         ?.candidates?.[0]
+
+    const finishReason =
+      candidate
+        ?.finishReason
+
+    const rawText =
+      candidate
         ?.content?.parts
-        ?.map(
-          p =>
-            p.text || ''
+        ?.filter(
+          part =>
+            !part.thought
+        )
+        .map(
+          part =>
+            part.text || ''
         )
         .join('')
         .trim()
 
-    return text
-      ? {
-          ...base,
-          answer: text
-        }
-      : base
-  } catch (error) {
-    console.error(
-      'No se pudo consultar Gemini:',
-      error.message
+    console.log(
+      'Gemini:',
+      {
+        model,
+        finishReason,
+        outputTokens:
+          data
+            ?.usageMetadata
+            ?.candidatesTokenCount
+      }
     )
 
+    if (
+      finishReason ===
+      'MAX_TOKENS'
+    ) {
+      console.warn(
+        'Gemini alcanzó MAX_TOKENS. Se usa la respuesta segura.'
+      )
+
+      return base
+    }
+
+    if (!rawText) {
+      return base
+    }
+
+    const text =
+      cleanModelText(
+        rawText
+      )
+
+    if (
+      !generatedAmountsAreSafe(
+        text,
+        base.answer
+      )
+    ) {
+      console.warn(
+        'Gemini introdujo un monto no permitido. Se usa la respuesta segura.'
+      )
+
+      return base
+    }
+
+    return {
+      ...base,
+      answer: text
+    }
+  } catch (error) {
+    clearTimeout(
+      timeout
+    )
+
+    if (
+      error?.name ===
+      'AbortError'
+    ) {
+      console.warn(
+        'Gemini tardó más de 15 segundos. Se usa la respuesta segura.'
+      )
+    } else {
+      console.error(
+        'No se pudo consultar Gemini:',
+        error?.message
+      )
+    }
+
     return base
+  }
+}
+
+// =====================================================
+// RESPUESTA SEGURA SI DATA ENGINE NO ESTÁ DISPONIBLE
+// =====================================================
+
+function dataUnavailableResponse() {
+  return {
+    answer:
+      'Ahora mismo no puedo verificar los datos de tu recibo. Prefiero no darte una explicación sin respaldo. Puedes intentarlo nuevamente o continuar con un asesor.',
+    source: '',
+    suggestHuman: true,
+    showOffer: false,
+    evidenceStatus:
+      'UNAVAILABLE',
+    intent:
+      'DATA_UNAVAILABLE'
   }
 }
 
@@ -883,14 +1837,20 @@ http
           JSON.stringify({
             ok: true,
             gemini:
-              !!process.env
-                .GEMINI_API_KEY
+              Boolean(
+                process.env
+                  .GEMINI_API_KEY
+              ),
+            dataEngineUrl:
+              DATA_ENGINE_URL,
+            allowDemoFallback:
+              ALLOW_DEMO_FALLBACK
           })
         )
       }
 
       // ------------------------------------------------
-      // ESCENARIOS
+      // ESCENARIOS LEGACY
       // ------------------------------------------------
 
       if (
@@ -947,42 +1907,77 @@ http
             body || '{}'
           )
 
+        const priorHistory =
+          normalizeHistory(
+            history,
+            message
+          )
+
         // ----------------------------------------------
-        // 1. CONSULTAR DATA ENGINE
+        // 1. RESOLVER FUENTE DE DATOS
         // ----------------------------------------------
 
-        const financialFacts =
-          await getFinancialFacts(
+        const {
+          facts,
+          dataSource,
+          unavailable
+        } =
+          await resolveScenarioFacts(
             scenario
           )
 
         // ----------------------------------------------
-        // 2. GENERAR RESPUESTA SEGURA
+        // 2. SI DATA ENGINE FALLA EN UN CASO CORE,
+        //    NO INVENTAR NI USAR FALLBACK SILENCIOSO
+        // ----------------------------------------------
+
+        if (unavailable) {
+          const response =
+            dataUnavailableResponse()
+
+          res.writeHead(
+            200,
+            {
+              'Content-Type':
+                'application/json; charset=utf-8'
+            }
+          )
+
+          return res.end(
+            JSON.stringify({
+              ...response,
+              dataSource
+            })
+          )
+        }
+
+        // ----------------------------------------------
+        // 3. GENERAR RESPUESTA SEGURA
         // ----------------------------------------------
 
         const base =
           deterministic(
             message,
             scenario,
-            history,
-            financialFacts
+            priorHistory,
+            facts
           )
 
         // ----------------------------------------------
-        // 3. GEMINI SOLO REDACTA
+        // 4. GEMINI SOLO REDACTA CUANDO APORTA VALOR
         // ----------------------------------------------
 
         const response =
           await withGemini(
             message,
             scenario,
-            history,
+            priorHistory,
             base,
-            financialFacts
+            facts
           )
 
         // ----------------------------------------------
-        // 4. RESPUESTA FINAL
+        // 5. RESPUESTA FINAL
         // ----------------------------------------------
 
         res.writeHead(
@@ -994,14 +1989,15 @@ http
         )
 
         res.end(
-          JSON.stringify(
-            response
-          )
+          JSON.stringify({
+            ...response,
+            dataSource
+          })
         )
       } catch (error) {
         console.error(
           'Error procesando /api/lucia:',
-          error.message
+          error?.message
         )
 
         res.writeHead(
