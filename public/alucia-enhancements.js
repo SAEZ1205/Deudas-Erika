@@ -1,17 +1,36 @@
 (() => {
   const API = 'http://127.0.0.1:8787/api/lucia';
-  const SCENARIOS = ['current','proration','reconnection','discount'];
+  const SCENARIOS = [
+  'current',
+  'proration',
+  'reconnection',
+  'discount',
+  'unverified'
+  ];
   const OFFERS = {
     current:{name:'500 GB',price:'S/59.90',benefit:'350 GB más',bonus:'Movistar TV app Lite',banner:'/promos/inicio-postpago.png'},
     discount:{name:'170 GB',price:'S/45.90',benefit:'20 GB más',bonus:'100 GB por 7 meses',banner:'/promos/plan-30gb.png'},
     proration:{name:'250 GB',price:'S/49.90',benefit:'100 GB más',bonus:'Movistar TV app Lite',banner:'/promos/inicio-cambiate.png'},
-    reconnection:{name:'280 GB',price:'S/55.90',benefit:'130 GB más',bonus:'Movistar TV app Lite',banner:'/promos/inicio-postpago.png'}
+    reconnection:{name:'280 GB',price:'S/55.90',benefit:'130 GB más',bonus:'Movistar TV app Lite',banner:'/promos/inicio-postpago.png'},
+    unverified:{
+      name:'500 GB',
+      price:'S/59.90',
+      benefit:'Más datos',
+      bonus:'Movistar TV app Lite',
+      banner:'/promos/inicio-postpago.png'
+    }
   };
   const FACTS = {
     current:{label:'condición normal',total:'S/59.90',previous:'S/59.90',detail:'El recibo se mantuvo igual. Solo se cobró el plan habitual y no se registraron extras ni ajustes.'},
     proration:{label:'prorrateo',total:'S/62.40',previous:'S/59.90',detail:'El plan no subió. Se cobraron S/2.50 por cinco días de un servicio adicional activo dentro del ciclo.'},
     reconnection:{label:'reconexión',total:'S/69.90',previous:'S/59.90',detail:'El plan no cambió. El aumento de S/10.00 corresponde a un cargo único por reconexión después de una suspensión.'},
-    discount:{label:'descuento',total:'S/39.90',previous:'S/59.90',detail:'El precio base sigue siendo S/59.90. Este mes una bonificación de S/20.00 redujo el total a S/39.90.'}
+    discount:{label:'descuento',total:'S/39.90',previous:'S/59.90',detail:'El precio base sigue siendo S/59.90. Este mes una bonificación de S/20.00 redujo el total a S/39.90.'},
+    unverified:{
+      label:'cargo sin evidencia',
+      total:'S/41.89',
+      previous:'S/31.90',
+      detail:'Detectamos un cargo nuevo de S/9.99, pero no existe evidencia suficiente para confirmar su origen.'
+    }
   };
 
   let scenario = sessionStorage.getItem('alucia:scenario') || 'current';
@@ -24,11 +43,19 @@
   const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
   function scenarioFromText(text){
-    const t = norm(text);
+  const t = norm(text);
+
+    if(
+      t.includes('cargo no verificable') ||
+      t.includes('cargo sin evidencia') ||
+      t.includes('cargo no identificado')
+    ) return 'unverified';
+
     if(t.includes('reconexion') || t.includes('reconexión')) return 'reconnection';
     if(t.includes('prorrateo')) return 'proration';
     if(t.includes('descuento') || t.includes('bonificacion') || t.includes('bonificación')) return 'discount';
     if(t.includes('normal') || t.includes('recibo actual')) return 'current';
+
     return null;
   }
 
@@ -180,15 +207,174 @@
     });
   }
 
+  function injectUnverifiedScenario() {
+    const container =
+      document.querySelector('.receipt-demo-options') ||
+      document.querySelector('.demo-scenario-options')
+
+    if (!container) return
+
+    // Evitar duplicados
+    const alreadyExists = [...container.querySelectorAll('button')].some(btn =>
+      norm(btn.textContent).includes('cargo sin evidencia')
+    )
+
+    if (alreadyExists) return
+
+    // Usamos "Dashboard del asesor" como plantilla visual
+    const template = [...container.querySelectorAll('button')].find(btn =>
+      norm(btn.textContent).includes('dashboard del asesor')
+    )
+
+    if (!template) return
+
+    const button = template.cloneNode(true)
+
+    button.classList.remove('active')
+    button.classList.add('alucia-unverified-option')
+
+    // Cambiar los textos sin alterar la estructura visual del botón
+    const walker = document.createTreeWalker(
+      button,
+      NodeFilter.SHOW_TEXT
+    )
+
+    let node
+
+    while ((node = walker.nextNode())) {
+      const text = node.nodeValue.trim()
+
+      if (text === '4') {
+        node.nodeValue = node.nodeValue.replace('4', '5')
+      }
+
+      if (text === 'Dashboard del asesor') {
+        node.nodeValue = node.nodeValue.replace(
+          'Dashboard del asesor',
+          'Cargo sin evidencia'
+        )
+      }
+
+      if (text === 'Ver la bandeja del Call Center') {
+        node.nodeValue = node.nodeValue.replace(
+          'Ver la bandeja del Call Center',
+          'Requiere validación de un asesor'
+        )
+      }
+    }
+
+    button.addEventListener('click', event => {
+      event.preventDefault()
+      event.stopPropagation()
+
+      container.querySelectorAll('button').forEach(btn => {
+        btn.classList.remove('active')
+      })
+
+      button.classList.add('active')
+
+      scenario = 'unverified'
+
+      sessionStorage.setItem(
+        'alucia:scenario',
+        'unverified'
+      )
+
+      resetConversation('unverified')
+      setTimeout(() => {
+        applyUnverifiedReceiptUI()
+      }, 100)
+
+      // Cerrar el modal del selector
+      const modal =
+        button.closest('[role="dialog"]') ||
+        button.closest('.modal') ||
+        button.closest('.receipt-demo-modal') ||
+        button.closest('.demo-modal')
+
+      if (modal) {
+        const closeButton = [...modal.querySelectorAll('button')].find(btn => {
+          const text = norm(btn.textContent)
+          const label = norm(btn.getAttribute('aria-label'))
+
+          return (
+            text === '×' ||
+            text === 'x' ||
+            label.includes('cerrar')
+          )
+        })
+
+        if (closeButton) {
+          closeButton.click()
+        }
+      }
+
+      rewriteReceiptTargets()
+    })
+
+    container.appendChild(button)
+  }
+
+  function applyUnverifiedReceiptUI() {
+    if (scenario !== 'unverified') return
+
+    // Cambiar total visible
+    const textElements = [...document.querySelectorAll('body *')]
+
+    for (const el of textElements) {
+      if (el.children.length > 0) continue
+
+      const text = (el.textContent || '').trim()
+
+      if (text === 'S/59.90') {
+        el.textContent = 'S/41.89'
+      }
+
+      if (text === 'Pendiente de pago') {
+        el.textContent = 'Requiere revisión'
+      }
+
+      if (text === 'Conoce la fecha de vencimiento de tu recibo') {
+        el.textContent = 'Detectamos un cargo adicional de S/9.99'
+      }
+
+      if (
+        text === 'Tu recibo de agosto vence el 15 de agosto de 2026.'
+      ) {
+        el.textContent =
+          'No existe evidencia suficiente para confirmar el origen del cargo.'
+      }
+    }
+  }
+
   document.addEventListener('click',e=>{
     const btn=e.target.closest('button');
     if(btn){const next=scenarioFromText(btn.textContent); if(next && next!==scenario){scenario=next;sessionStorage.setItem('alucia:scenario',next);resetConversation(next);setTimeout(rewriteReceiptTargets,80);}}
   },true);
 
   const observer = new MutationObserver(()=>{
-    const backdrop=document.querySelector('.chat-backdrop'); if(backdrop) enhanceChat(backdrop);
-    rewriteReceiptTargets();
+    const backdrop = document.querySelector('.chat-backdrop')
+
+    if (backdrop) enhanceChat(backdrop)
+
+    injectUnverifiedScenario()
+
+    if (scenario === 'unverified') {
+      applyUnverifiedReceiptUI()
+    }
+    
+    rewriteReceiptTargets()
   });
 
-  document.addEventListener('DOMContentLoaded',()=>{detectScenario();observer.observe(document.body,{subtree:true,childList:true});rewriteReceiptTargets();});
+  document.addEventListener('DOMContentLoaded',()=>{
+    detectScenario()
+
+    observer.observe(document.body,{
+      subtree:true,
+      childList:true
+    })
+
+    injectUnverifiedScenario()
+    rewriteReceiptTargets()
+    });
 })();
