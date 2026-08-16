@@ -1,36 +1,39 @@
-# MI RECIBO INTELIGENTE — RESCATE FINAL
+# MOVISTAR-Reto1 · Mi Recibo Inteligente
 
-Este paquete contiene la versión pública capturada del Site, usando los mismos bundles JS/CSS y los mismos assets descargados por el navegador.
+Proyecto reorganizado con **React + TypeScript + Vite + Tailwind CSS** sin rediseñar la interfaz final aprobada.
 
-## Ejecutar local
+## Regla de esta migración
 
-```bash
-npm run dev
+La interfaz visual final está congelada en `public/app-final.html` y utiliza los mismos assets recuperados, LucIA, promociones y PDFs. `src/App.tsx` la monta a pantalla completa para que la reorganización interna no cambie la experiencia visual.
+
+No se utiliza la fuente React antigua.
+
+## Ejecutar
+
+```powershell
+npm install
+Copy-Item .env.example .env.local
+code .env.local
+npm run dev:full
 ```
 
-Luego abre http://localhost:3000/
+Abrir `http://127.0.0.1:3000`.
 
-Vista Call Center: http://localhost:3000/?modo=asesor
+Sin Gemini se puede usar `npm run dev`; LucIA mantiene su fallback local.
 
-## Vercel
+## Estructura
 
-Importa este directorio. El `vercel.json` ya define `npm run build` y `dist`. No usa proxy ni depende de ChatGPT Sites.
+- `src/pages/cliente`: pantallas del cliente para migración modular futura.
+- `src/pages/asesor`: dashboard y detalle de casos.
+- `src/components`: componentes por dominio.
+- `src/services`: acceso a facturación, LucIA, handoff y ofertas.
+- `src/types`: contratos TypeScript.
+- `backend/data/raw`: dataset oficial local; no se versiona.
+- `backend/data/processed`: salidas procesadas.
+- `backend/data/demo`: cuatro escenarios de demo.
+- `backend/ai`: servidor local LucIA/Gemini.
+- `public`: interfaz final intacta, imágenes, banners y 24 PDFs.
 
-## Código fuente antiguo
+## Seguridad
 
-El ZIP que proporcionaste está preservado en `FUENTE_BASE_ANTIGUA_NO_USADA_EN_LA_DEMO/`. La versión exacta que corre en la raíz es el frontend compilado capturado desde el Site final.
-
-## Verificación realizada
-
-- El JavaScript principal y CSS principal vienen directamente del HAR de la versión final publicada.
-- Se verificaron 26 referencias de assets dentro del bundle y las 26 existen localmente.
-- El bundle no contiene referencias a `chatgpt.site`; la app empaquetada no usa proxy.
-- `npm run build` fue ejecutado correctamente y generó `dist/`.
-
-## Configuración recomendada en Vercel
-
-- Root Directory: `./`
-- Framework Preset: `Other`
-- Build Command: se toma de `vercel.json` (`npm run build`)
-- Output Directory: se toma de `vercel.json` (`dist`)
-- Environment Variables: ninguna para la demo local/simulada
+Nunca subir `GEMINI_API_KEY`. Usa `.env.local`.

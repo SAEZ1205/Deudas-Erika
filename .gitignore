@@ -1,6 +1,8 @@
-.env
-.env.local
 node_modules/
-.DS_Store
+dist/
+.env.local
+.env.*.local
+*.log
 backend/data/raw/*
 !backend/data/raw/.gitkeep
+.DS_Store

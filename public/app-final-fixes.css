@@ -1,0 +1,13 @@
+/* Ajustes mínimos solicitados: no se modifica la interfaz general. */
+#alucia-smart-trigger { display: none !important; }
+.alucia-offer-card { overflow: visible !important; }
+.alucia-offer-banner {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+}

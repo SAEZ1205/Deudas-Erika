@@ -1,0 +1,35 @@
+name: Validar estructura React y UI final
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - name: Validar estructura y assets
+        run: |
+          test -f src/pages/cliente/Inicio.tsx
+          test -f src/pages/asesor/DashboardAsesor.tsx
+          test -f public/app-final.html
+          ! grep -q 'alucia-trigger.js' public/app-final.html
+          grep -q 'object-fit: contain' public/app-final-fixes.css
+          for s in current proration reconnection discount; do test "$(find public/recibos/$s -name '*.pdf' | wc -l)" -eq 6; done
+      - name: Validar render sin pantalla azul
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium >/dev/null
+          npm run dev >/tmp/web.log 2>&1 & WEB=$!
+          sleep 2
+          timeout 45s node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{const b=await chromium.launch({headless:true});const p=await b.newPage({viewport:{width:390,height:844}});await p.goto('http://127.0.0.1:3000',{waitUntil:'networkidle'});const frame=p.frame({url:/app-final\.html/});if(!frame)throw Error('No cargó app-final');if((await frame.locator('#root').evaluate(e=>e.children.length))<1)throw Error('UI final vacía');if(await frame.locator('#alucia-smart-trigger').count())throw Error('Botón LucIA duplicado visible');console.log('OK: React/Vite envuelve UI final sin cambios');await b.close()})().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          kill $WEB || true
