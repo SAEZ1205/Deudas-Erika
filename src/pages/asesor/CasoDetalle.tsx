@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { advisorCases } from '../../data/mocks/advisorCases'
 
 type CallState = 'idle' | 'calling' | 'success' | 'error'
+const WELCOME_KEY = 'lucia-advisor-entry-active-v2'
 
 export default function CasoDetalle() {
   const id = decodeURIComponent(window.location.pathname.split('/').pop() || '')
@@ -35,6 +36,10 @@ export default function CasoDetalle() {
     }
   }
 
+  function exitAdvisor() {
+    sessionStorage.removeItem(WELCOME_KEY)
+  }
+
   const callLabel = callState === 'calling'
     ? '⏳ Iniciando llamada…'
     : callState === 'success'
@@ -47,7 +52,7 @@ export default function CasoDetalle() {
     <main className="h-screen min-h-screen overflow-x-hidden overflow-y-auto bg-[#eef6fa] text-slate-900">
       <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-r from-[#007ac3] via-[#009ee3] to-[#12b3ea] px-5 py-3 text-white shadow-lg md:px-7">
         <div className="flex items-center gap-3"><div className="rounded-xl bg-white px-2 py-1 shadow-sm"><img src="/advisor/movistar-logo.webp" className="h-8 w-auto object-contain" /></div><div><b>LucIA · Atención a clientes</b><p className="text-xs text-white/80">Detalle del caso</p></div></div>
-        <a href="/" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur transition hover:bg-white/20">Volver a Mi Movistar</a>
+        <a href="/" onClick={exitAdvisor} className="rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur transition hover:bg-white/20">Volver a Mi Movistar</a>
       </header>
 
       <section className="mx-auto max-w-6xl px-5 py-6">
