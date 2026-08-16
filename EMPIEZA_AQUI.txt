@@ -1,0 +1,13 @@
+PROYECTO MOVISTAR - LUCIA
+
+1) npm install
+2) Copy-Item .env.local.example .env.local
+3) code .env.local
+4) Pega tu GEMINI_API_KEY en .env.local
+5) npm run dev:full
+6) Abre http://127.0.0.1:3000
+
+Si solo quieres ver la interfaz sin Gemini:
+npm run dev
+
+NO necesitas npm approve-scripts esbuild.
