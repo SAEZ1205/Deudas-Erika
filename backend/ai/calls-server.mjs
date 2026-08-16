@@ -46,8 +46,12 @@ function escapeXml(text = '') {
 }
 
 function isConfigured() {
-  const common = Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.ADVISOR_PHONE)
-  return trialMode ? common : Boolean(common && process.env.TWILIO_FROM_NUMBER)
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID &&
+    process.env.TWILIO_AUTH_TOKEN &&
+    process.env.TWILIO_FROM_NUMBER &&
+    process.env.ADVISOR_PHONE
+  )
 }
 
 http.createServer(async (req, res) => {
@@ -86,9 +90,7 @@ http.createServer(async (req, res) => {
       return json(res, 503, {
         ok: false,
         code: 'TWILIO_NOT_CONFIGURED',
-        message: trialMode
-          ? 'Twilio Trial requiere Account SID, Auth Token y ADVISOR_PHONE.'
-          : 'La telefonía todavía no está configurada.'
+        message: 'Falta Account SID, Auth Token, TWILIO_FROM_NUMBER o ADVISOR_PHONE.'
       })
     }
 
@@ -97,10 +99,12 @@ http.createServer(async (req, res) => {
 
     let call
     if (trialMode) {
-      // En Twilio Trial, Create Call restringe los parámetros permitidos.
-      // No enviamos From ni TwiML inline: Twilio usa su número trial y plantilla autorizada.
+      // Trial: From sigue siendo obligatorio y debe ser EXACTAMENTE el From Number
+      // asignado por Twilio para el destinatario verificado de Try out Voice.
+      // Las instrucciones iniciales deben usar una plantilla oficial permitida.
       call = await client.calls.create({
         to,
+        from,
         url: TRIAL_VOICE_URL
       })
     } else {
@@ -118,7 +122,7 @@ http.createServer(async (req, res) => {
       toMasked: maskPhone(to),
       mode: trialMode ? 'trial-template' : 'custom-summary',
       note: trialMode
-        ? 'Twilio Trial realizó una llamada real usando su plantilla de voz permitida. El resumen dinámico requiere el modo de cuenta completa.'
+        ? 'Twilio Trial realizó la llamada usando el From/To autorizado y su plantilla oficial.'
         : 'LucIA leerá el resumen dinámico correspondiente al caso.'
     })
   } catch (error) {
