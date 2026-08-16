@@ -55,15 +55,32 @@ jobs:
             await page.waitForTimeout(800);
             const body=(await page.locator('body').innerText()).trim();
             if(body.length<100) throw new Error('La interfaz no renderizó contenido suficiente');
-            const lucia=page.locator('.lucia-floating-button').first();
-            await lucia.click();
-            await page.waitForSelector('.alucia-smart-chat',{timeout:5000});
+
+            const candidates=page.locator('button, [role="button"]');
+            const n=await candidates.count(); let opened=false;
+            for(let i=0;i<n;i++){
+              const b=candidates.nth(i); if(!(await b.isVisible())) continue;
+              const txt=((await b.innerText().catch(()=>''))||'').trim();
+              const aria=(await b.getAttribute('aria-label'))||'';
+              const hasLuciaImg=await b.locator('img[src*="lucia" i]').count();
+              if(/lucia|asistente|ayuda/i.test(txt+' '+aria) || hasLuciaImg){
+                await b.click().catch(()=>{}); await page.waitForTimeout(300);
+                if(await page.locator('.alucia-smart-chat').count()){opened=true;break;}
+              }
+            }
+            if(!opened){
+              const luciaImg=page.locator('img[src*="lucia" i]').filter({visible:true}).last();
+              if(await luciaImg.count()){await luciaImg.click().catch(()=>{});await page.waitForTimeout(400);opened=await page.locator('.alucia-smart-chat').count()>0;}
+            }
+            if(!opened) throw new Error('No pude abrir el chat LucIA desde la interfaz final');
             if(await page.locator('.alucia-input').count()!==1) throw new Error('No apareció input ALUCIA');
+
             await page.locator('.alucia-input').fill('oe xq me vino asi');
             await page.locator('.alucia-send').click();
             await page.waitForTimeout(1000);
             const chatText=await page.locator('.alucia-scroll').innerText();
             if(!/recibo|plan|cobro|mantuvo|variaci/i.test(chatText)) throw new Error('LucIA no respondió al mensaje');
+
             await page.locator('.alucia-input').fill('quiero ver una oferta');
             await page.locator('.alucia-send').click();
             await page.waitForTimeout(900);
