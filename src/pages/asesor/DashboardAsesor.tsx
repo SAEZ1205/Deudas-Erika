@@ -31,7 +31,7 @@ function downloadCsv() {
   URL.revokeObjectURL(url)
 }
 
-const WELCOME_KEY = 'lucia-advisor-welcome-v1'
+const WELCOME_KEY = 'lucia-advisor-entry-active-v2'
 
 export default function DashboardAsesor() {
   const [query, setQuery] = useState('')
@@ -39,12 +39,19 @@ export default function DashboardAsesor() {
   const [welcome, setWelcome] = useState(false)
 
   useEffect(() => {
-    if (!localStorage.getItem(WELCOME_KEY)) setWelcome(true)
+    const alreadyInsideAdvisor = sessionStorage.getItem(WELCOME_KEY) === '1'
+    if (!alreadyInsideAdvisor) {
+      setWelcome(true)
+      sessionStorage.setItem(WELCOME_KEY, '1')
+    }
   }, [])
 
   function dismissWelcome() {
-    localStorage.setItem(WELCOME_KEY, 'seen')
     setWelcome(false)
+  }
+
+  function exitAdvisor() {
+    sessionStorage.removeItem(WELCOME_KEY)
   }
 
   const counts = {
@@ -63,7 +70,7 @@ export default function DashboardAsesor() {
   return (
     <main className="h-screen min-h-screen overflow-x-hidden overflow-y-auto bg-[#edf6fb] text-slate-900">
       {welcome && (
-        <div onClick={dismissWelcome} className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 p-4 backdrop-blur-[2px] md:items-center md:justify-end md:p-8">
+        <div onClick={dismissWelcome} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px] md:p-8">
           <div onClick={e => e.stopPropagation()} className="relative w-full max-w-[690px] overflow-hidden rounded-[32px] border border-sky-100 bg-white shadow-[0_28px_90px_rgba(0,88,150,.30)]">
             <div className="grid min-h-[360px] md:grid-cols-[1.08fr_.92fr]">
               <div className="flex flex-col justify-center p-7 md:p-9">
@@ -87,7 +94,7 @@ export default function DashboardAsesor() {
           <div className="rounded-xl bg-white px-2 py-1 shadow-sm"><img src="/advisor/movistar-logo.webp" alt="Movistar" className="h-8 w-auto object-contain" /></div>
           <div><b>LucIA · Atención a clientes</b><p className="text-xs text-white/80">Bandeja operativa</p></div>
         </div>
-        <a href="/" className="rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur transition hover:bg-white/20">Volver a Mi Movistar</a>
+        <a href="/" onClick={exitAdvisor} className="rounded-full border border-white/40 bg-white/10 px-4 py-2 text-sm font-bold shadow-sm backdrop-blur transition hover:bg-white/20">Volver a Mi Movistar</a>
       </header>
 
       <section className="mx-auto max-w-7xl px-5 py-7">
@@ -106,7 +113,7 @@ export default function DashboardAsesor() {
             </div>
             <div className="relative min-h-[250px]">
               <div className="absolute bottom-5 right-8 h-[78%] w-[65%] rounded-full bg-white/15 blur-2xl" />
-              <img src="/advisor/lucia-hero.webp" alt="LucIA empleada" className="absolute bottom-0 left-1/2 h-[94%] -translate-x-1/2 object-contain drop-shadow-[0_24px_28px_rgba(0,60,100,.28)]" />
+              <img src="/advisor/lucia-hero.webp" alt="LucIA empleada" className="absolute bottom-0 left-1/2 h-[94%] -translate-x-1/2 bg-transparent object-contain mix-blend-multiply drop-shadow-[0_24px_28px_rgba(0,60,100,.28)]" />
             </div>
           </div>
         </div>
