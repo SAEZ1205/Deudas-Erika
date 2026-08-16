@@ -48,6 +48,21 @@ export const advisorCallCases = {
     plan: 59.90,
     evidence: ['cargo único de reconexión por S/10.00', 'registro de suspensión y reactivación'],
     recommendation: 'explicar que el plan base no cambió y que el incremento corresponde únicamente a la reconexión'
+  },
+  'DEMO-UNVERIFIED': {
+    fullName: 'Cliente demo cargo sin evidencia',
+    reason: 'cargo de S/9.99 cuyo origen no pudo ser confirmado',
+    currentTotal: 41.89,
+    previousTotal: 31.90,
+    difference: 9.99,
+    plan: 31.90,
+    evidence: [
+      'paquete de 3 GB de Internet por 10 días por S/9.99',
+      'el cargo aparece en Facturación',
+      'no se encontró una orden asociada que permita confirmar su origen'
+    ],
+    recommendation:
+      'revisar con el cliente el origen del cargo sin afirmar que fue solicitado o activado por él'
   }
 }
 
@@ -55,7 +70,8 @@ export const scenarioCallCaseIds = {
   current: 'CASO-602318',
   discount: 'CASO-218217',
   proration: 'CASO-771204',
-  reconnection: 'DEMO-RECONNECTION'
+  reconnection: 'DEMO-RECONNECTION',
+  unverified: 'DEMO-UNVERIFIED'
 }
 
 const soles = value => {
