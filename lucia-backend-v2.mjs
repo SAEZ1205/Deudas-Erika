@@ -8,9 +8,10 @@ async function loadEnv(){
 await loadEnv();
 const SCENARIOS=JSON.parse(await readFile(resolve('backend/data/scenarios.json'),'utf8'));
 const OFFERS=[
-  {id:'POST-170',name:'170 GB',price:45.90,benefit:'20 GB mas',bonus:'100 GB por 7 meses',banner:'/promos/inicio-postpago.png'},
+  {id:'POST-170',name:'170 GB',price:45.90,benefit:'20 GB mas',bonus:'100 GB por 7 meses',banner:'/promos/plan-30gb.png'},
   {id:'POST-250',name:'250 GB',price:49.90,benefit:'100 GB mas',bonus:'Movistar TV app Lite',banner:'/promos/inicio-cambiate.png'},
-  {id:'POST-280',name:'280 GB',price:55.90,benefit:'130 GB mas',bonus:'Apps y llamadas ilimitadas',banner:'/promos/inicio-postpago.png'}
+  {id:'POST-280',name:'280 GB',price:55.90,benefit:'130 GB mas',bonus:'Movistar TV app Lite',banner:'/promos/inicio-postpago.png'},
+  {id:'POST-500',name:'500 GB',price:59.90,benefit:'350 GB mas',bonus:'Movistar TV app Lite',banner:'/promos/inicio-postpago.png'}
 ];
 const norm=(s='')=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
 const money=n=>`S/${Number(n).toFixed(2)}`;
@@ -38,7 +39,7 @@ function classify(message,history=[]){
 function resolvedByHistory(history=[]){
   return history.some(m=>m.role==='user'&&/^(a+h* ?ya|ah ?ya|ya entendi|entendi|entiendo|listo|perfecto|gracias|ok|okay)(\s|$)/i.test(norm(m.text||'')));
 }
-function offerFor(scenario){return scenario==='discount'?OFFERS[0]:scenario==='proration'?OFFERS[1]:OFFERS[2];}
+function offerFor(scenario){return scenario==='discount'?OFFERS[0]:scenario==='proration'?OFFERS[1]:scenario==='reconnection'?OFFERS[2]:OFFERS[3];}
 
 function deterministic(message,scenario='current',history=[]){
   const s=SCENARIOS[scenario]||SCENARIOS.current;
