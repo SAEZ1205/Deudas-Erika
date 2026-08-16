@@ -1,3 +1,4 @@
+# Generador oficial de recibos de demo por escenario. Ejecutado por GitHub Actions.
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
