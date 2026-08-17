@@ -1,7 +1,7 @@
 import {
   captureHttpHandler,
   toNodeLikeRequest
-} from './_capture-http-server.mjs'
+} from '../backend/vercel/capture-http-server.mjs'
 
 const handler = await captureHttpHandler(
   new URL('../backend/ai/server.mjs', import.meta.url),
