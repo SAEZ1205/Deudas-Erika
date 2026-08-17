@@ -77,7 +77,7 @@
 
   function greeting(){
     const f = FACTS[scenario] || FACTS.current;
-    return `Hola, soy LucIA. Ya cargué la demo de ${f.label}. Pregúntame como hablas normalmente: “xq vino así”, “ese cobro de qué es”, “cuánto pagué antes” o “qué oferta me conviene”.`;
+    return `Hola, soy LucIA. Ya cargué la demo de ${f.label}. Pregúntame como hablas normalmente: “xq vino así”, “ese cobro de qué es” o “cuánto pagué antes”.`;
   }
 
   function fallback(message){
@@ -104,11 +104,37 @@
 
   function speak(text){
     if(!voiceOutput || !('speechSynthesis' in window) || !text) return;
+
     speechSynthesis.cancel();
+
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'es-PE'; u.rate = 1.02; u.pitch = 1;
+
+    u.lang = 'es-MX';
+    u.rate = 0.94;
+    u.pitch = 1.11;
+    u.volume = 1;
+
     const voices = speechSynthesis.getVoices();
-    u.voice = voices.find(v => /es-PE/i.test(v.lang)) || voices.find(v => /^es/i.test(v.lang)) || null;
+
+    const preferredVoice =
+      voices.find(v =>
+        v.name === 'Microsoft Dalia Online (Natural) - Spanish (Mexico)'
+      ) ||
+      voices.find(v =>
+        /Dalia/i.test(v.name) && /^es-MX$/i.test(v.lang)
+      ) ||
+      voices.find(v =>
+        /^es-MX$/i.test(v.lang)
+      ) ||
+      voices.find(v =>
+        /^es/i.test(v.lang)
+      ) ||
+      null;
+
+    if(preferredVoice){
+      u.voice = preferredVoice;
+    }
+
     speechSynthesis.speak(u);
   }
 
@@ -158,7 +184,6 @@
       html += `<div class="quick-questions alucia-quick">
         <button data-q="¿Por qué vino así mi recibo?">¿Por qué vino así?</button>
         <button data-q="¿Cuánto pagué el mes pasado?">Mes pasado</button>
-        <button data-q="Quiero ver una oferta">Ver una oferta</button>
       </div>`;
     }
     scroll.innerHTML = html;

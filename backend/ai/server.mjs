@@ -1266,8 +1266,20 @@ function deterministic(
     intent ===
     'CONFIRMAR_COMPRENSION'
   ) {
+    if (
+      evidenceStatus === 'NONE' ||
+      requiresHandoff
+    ) {
+      return answer(
+        'Gracias por confirmarlo. Como este caso todavía necesita revisión de un asesor, prefiero que primero resolvamos eso antes de mostrarte promociones.',
+        {
+          suggestHuman: true
+        }
+      )
+    }
+
     return answer(
-      'Perfecto. Me alegra que haya quedado claro. Si quieres, podemos revisar otra parte de tu recibo.'
+      'Perfecto. Me alegra que haya quedado claro. Si quieres, también puedo mostrarte una promoción disponible para ti.'
     )
   }
 
@@ -1396,7 +1408,6 @@ function deterministic(
     'CONSULTAR_OFERTA'
   ) {
     const resolved =
-      scenario === 'current' ||
       history.some(
         m =>
           m?.role === 'user' &&
@@ -1407,6 +1418,18 @@ function deterministic(
               )
             )
       )
+    
+    if (
+      evidenceStatus === 'NONE' ||
+      requiresHandoff
+    ) {
+      return answer(
+        'Primero necesitamos que un asesor revise este caso. Prefiero no ofrecerte una promoción mientras tu duda siga pendiente.',
+        {
+          suggestHuman: true
+        }
+      )
+    }
 
     if (!resolved) {
       return answer(
