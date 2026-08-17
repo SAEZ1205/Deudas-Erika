@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { Readable } from 'node:stream'
 
 /**
  * Importa un servidor Node existente y captura su requestListener sin
@@ -64,4 +65,36 @@ export async function captureHttpHandler(moduleUrl, beforeImport) {
   }
 
   return requestHandler
+}
+
+/**
+ * Vercel puede entregar request.body ya parseado. Los servidores actuales
+ * leen el body con `for await (const chunk of req)`, por lo que recreamos
+ * un IncomingMessage-like stream sin alterar la lógica de los handlers.
+ */
+export function toNodeLikeRequest(request) {
+  if (
+    request.body === undefined ||
+    request.body === null ||
+    request.method === 'GET' ||
+    request.method === 'HEAD'
+  ) {
+    return request
+  }
+
+  const body =
+    typeof request.body === 'string'
+      ? request.body
+      : JSON.stringify(request.body)
+
+  const stream = Readable.from([body])
+
+  stream.method = request.method
+  stream.url = request.url
+  stream.headers = request.headers
+  stream.httpVersion = request.httpVersion
+  stream.socket = request.socket
+  stream.connection = request.connection
+
+  return stream
 }
