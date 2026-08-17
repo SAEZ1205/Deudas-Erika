@@ -9,5 +9,23 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      const root = document.getElementById('root')
+      if (root) {
+        const useDashboardLuciaHero = () => {
+          const image = root.querySelector('img[alt="LucIA empleada"]')
+          if (image && image.getAttribute('src') !== '/advisor/lucia-hero.webp') {
+            image.setAttribute('src', '/advisor/lucia-hero.webp')
+          }
+        }
+
+        new MutationObserver(useDashboardLuciaHero).observe(root, {
+          childList: true,
+          subtree: true,
+        })
+
+        useDashboardLuciaHero()
+      }
+    </script>
   </body>
 </html>
